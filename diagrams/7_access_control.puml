@@ -1,0 +1,44 @@
+@startuml "Patient - Controle d'Acces"
+title Patient - Gestion des Demandes d'Accès
+
+participant "Patient" as patient
+participant "Patient App" as app
+participant "AccessService" as service
+participant "ApiService" as api
+participant "Backend" as backend
+participant "Database" as db
+
+patient -> app: Open "Access Requests" tab
+app -> service: getAccessRequests()
+service -> api: GET /patient/access-requests\n[Bearer PATIENT_TOKEN]
+api -> backend: HTTP GET
+backend -> db: SELECT * FROM access_requests\nWHERE patient_id = ?
+db --> backend: Requests (Pending, Approved, Rejected)
+backend --> api: {requests: [...]}
+api --> app: Display requests
+app --> patient: ✓ Requests visible
+
+patient -> app: Review doctor access request
+patient -> app: Click "Approve" or "Reject"
+app -> service: updateAccessRequest(\n{request_id, status: 'approved'})
+service -> api: PUT /access-requests/{id}\n{status, patient_id}
+api -> backend: HTTP PUT
+backend -> db: UPDATE access_requests\nSET status = 'approved'
+db --> backend: Update OK
+backend -> db: Update permissions table
+db --> backend: OK
+backend --> api: {status: 'success'}
+api --> app: ✓ Decision saved
+app --> patient: ✓ Updated
+
+note over patient, db
+  Access Types:
+  - Doctor accesses patient dossier
+  - Nurse accesses vitals
+  - Laboratory accesses exam results
+  - Pharmacist accesses prescriptions
+  
+  PATIENT CONTROLS who accesses what!
+end note
+
+@enduml

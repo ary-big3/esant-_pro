@@ -1,0 +1,397 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "E-Santé Backend API",
+    "description": "Plateforme Nationale E-Santé Intelligente et Sécurisée - API REST",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Support E-Santé",
+      "email": "support@esante.sn"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost/esante/backend/public",
+      "description": "Développement local"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "integer" },
+          "email": { "type": "string", "format": "email" },
+          "full_name": { "type": "string" },
+          "phone": { "type": "string" },
+          "role": { "type": "string", "enum": ["patient", "medecin", "infirmiere", "laboratoire", "admin"] },
+          "is_active": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Patient": {
+        "type": "object",
+        "properties": {
+          "patient_id": { "type": "integer" },
+          "user_id": { "type": "integer" },
+          "first_name": { "type": "string" },
+          "last_name": { "type": "string" },
+          "date_of_birth": { "type": "string", "format": "date" },
+          "gender": { "type": "string", "enum": ["M", "F"] },
+          "blood_group": { "type": "string", "enum": ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"] },
+          "phone": { "type": "string" },
+          "email": { "type": "string", "format": "email" }
+        }
+      },
+      "AuthToken": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "integer" },
+          "email": { "type": "string" },
+          "full_name": { "type": "string" },
+          "role": { "type": "string" },
+          "token": { "type": "string" }
+        }
+      },
+      "Appointment": {
+        "type": "object",
+        "properties": {
+          "appointment_id": { "type": "integer" },
+          "patient_id": { "type": "integer" },
+          "doctor_id": { "type": "integer" },
+          "appointment_date": { "type": "string", "format": "date-time" },
+          "status": { "type": "string", "enum": ["confirmed", "pending", "completed", "cancelled"] },
+          "reason_for_appointment": { "type": "string" }
+        }
+      },
+      "Prescription": {
+        "type": "object",
+        "properties": {
+          "prescription_id": { "type": "integer" },
+          "prescription_number": { "type": "string" },
+          "patient_id": { "type": "integer" },
+          "doctor_id": { "type": "integer" },
+          "status": { "type": "string", "enum": ["active", "expired", "completed", "cancelled"] },
+          "issue_date": { "type": "string", "format": "date" },
+          "expiry_date": { "type": "string", "format": "date" },
+          "medications": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "medication_name": { "type": "string" },
+                "dosage": { "type": "string" },
+                "frequency": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "Exam": {
+        "type": "object",
+        "properties": {
+          "exam_id": { "type": "integer" },
+          "exam_request_number": { "type": "string" },
+          "patient_id": { "type": "integer" },
+          "doctor_id": { "type": "integer" },
+          "exam_type": { "type": "string" },
+          "urgency_level": { "type": "string", "enum": ["normal", "urgent", "tres_urgent"] },
+          "exam_status": { "type": "string", "enum": ["pending", "in_progress", "completed", "cancelled"] },
+          "result_interpretation": { "type": "string", "enum": ["normal", "abnormal", "to_verify"] }
+        }
+      },
+      "Consultation": {
+        "type": "object",
+        "properties": {
+          "consultation_id": { "type": "integer" },
+          "patient_id": { "type": "integer" },
+          "doctor_id": { "type": "integer" },
+          "consultation_date": { "type": "string", "format": "date-time" },
+          "diagnosis": { "type": "string" },
+          "treatment_plan": { "type": "string" },
+          "consultation_status": { "type": "string", "enum": ["completed", "pending", "cancelled"] }
+        }
+      },
+      "MedicalHistory": {
+        "type": "object",
+        "properties": {
+          "patient_id": { "type": "integer" },
+          "medical_conditions": { "type": "string" },
+          "family_history": { "type": "string" },
+          "blood_group": { "type": "string" },
+          "chronic_diseases": { "type": "array", "items": { "type": "string" } },
+          "known_allergies": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "VitalSigns": {
+        "type": "object",
+        "properties": {
+          "vital_sign_id": { "type": "integer" },
+          "patient_id": { "type": "integer" },
+          "temperature_celsius": { "type": "number" },
+          "systolic_pressure": { "type": "integer" },
+          "diastolic_pressure": { "type": "integer" },
+          "pulse_bpm": { "type": "integer" },
+          "oxygen_saturation": { "type": "number" },
+          "weight_kg": { "type": "number" },
+          "height_cm": { "type": "integer" },
+          "measurement_date": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "data": { "type": "object" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "statusCode": { "type": "integer" },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "errors": { "type": "object" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": ["Authentification"],
+        "summary": "Inscrire un nouvel utilisateur",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password", "full_name", "phone", "role"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "minLength": 8 },
+                  "full_name": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "role": { "type": "string", "enum": ["patient", "medecin", "infirmiere", "laboratoire"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Utilisateur créé avec succès",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "$ref": "#/components/schemas/AuthToken" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Authentification"],
+        "summary": "Connexion utilisateur",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Connexion réussie",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SuccessResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/patient/profile": {
+      "get": {
+        "tags": ["Patient"],
+        "summary": "Obtenir le profil du patient courant",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Profil récupéré",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SuccessResponse" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Patient"],
+        "summary": "Mettre à jour le profil du patient",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "first_name": { "type": "string" },
+                  "last_name": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "email": { "type": "string", "format": "email" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profil mis à jour",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SuccessResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/appointments": {
+      "post": {
+        "tags": ["Rendez-vous"],
+        "summary": "Créer un rendez-vous",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["appointment_date", "doctor_id"],
+                "properties": {
+                  "appointment_date": { "type": "string", "format": "date-time" },
+                  "doctor_id": { "type": "integer" },
+                  "patient_id": { "type": "integer" },
+                  "reason_for_appointment": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rendez-vous créé",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SuccessResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/prescriptions": {
+      "post": {
+        "tags": ["Ordonnances"],
+        "summary": "Créer une ordonnance",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["patient_id", "consultation_id", "medications"],
+                "properties": {
+                  "patient_id": { "type": "integer" },
+                  "consultation_id": { "type": "integer" },
+                  "medications": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ordonnance créée",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SuccessResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/exams/prescribe": {
+      "post": {
+        "tags": ["Examens"],
+        "summary": "Prescrire un examen",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["patient_id", "exam_type", "speciality_id"],
+                "properties": {
+                  "patient_id": { "type": "integer" },
+                  "exam_type": { "type": "string" },
+                  "speciality_id": { "type": "integer" },
+                  "urgency_level": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Examen prescrit",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SuccessResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

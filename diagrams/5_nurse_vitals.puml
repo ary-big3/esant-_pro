@@ -1,0 +1,40 @@
+@startuml "Nurse - Patients et Vitaux"
+title Infirmière - Accès Patients et Mesures Vitales
+
+participant "Nurse" as nurse
+participant "Nurse App" as app
+participant "NurseService" as service
+participant "ApiService" as api
+participant "Backend" as backend
+participant "Database" as db
+
+nurse -> app: Open Nurse Dashboard
+app -> service: getAssignedPatients()
+service -> api: GET /nurse/patients\n[Bearer NURSE_TOKEN]
+api -> backend: HTTP GET
+backend -> db: SELECT patients\nWHERE assigned_to_nurse = ?
+db --> backend: Patients assigned
+backend --> api: {patients: [...]}
+api --> app: Display patients list
+app --> nurse: ✓ Patients displayed
+
+nurse -> app: Click on patient
+app -> service: getPatientVitals(patient_id)
+service -> api: GET /patient/{id}/vitals
+api -> backend: HTTP GET
+backend -> db: SELECT * FROM vitals\nWHERE patient_id = ?\nORDER BY date DESC
+db --> backend: Vitals data
+backend --> api: {heart_rate, blood_pressure, SpO2, ...}
+api --> service: Vitals
+service --> app: Display charts & history
+app --> nurse: ✓ Vitals visible
+
+note over nurse, db
+  Nurse can:
+  ✓ View vital signs (HR, BP, SpO2, Temp)
+  ✓ Record new measurements
+  ✓ View consultations/prescriptions
+  ✓ Print patient record
+end note
+
+@enduml

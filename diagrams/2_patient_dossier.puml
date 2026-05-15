@@ -1,0 +1,29 @@
+@startuml "Patient - Dossier Medical"
+title Patient - Consulter Dossier Médical Complet
+
+participant "Patient" as user
+participant "Flutter App" as app
+participant "PatientService" as service
+participant "ApiService" as api
+participant "Backend" as backend
+participant "Database" as db
+
+user -> app: Ouvre "Dossier Médical"
+app -> service: getDossierMedical()
+service -> api: GET /medical-dossier/0\n[Bearer TOKEN]
+api -> backend: HTTP GET avec JWT
+backend -> db: SELECT * FROM consultations\nWHERE patient_id = ?
+db --> backend: Consultations
+backend -> db: SELECT * FROM diagnostics
+db --> backend: Diagnostics
+backend -> db: SELECT * FROM exams\nWHERE patient_id = ?
+db --> backend: Examens
+backend -> db: SELECT * FROM prescriptions\nWHERE patient_id = ?
+db --> backend: Ordonnances
+backend --> api: JSON Response
+api --> service: Données
+service --> app: Formatées
+app -> app: Display 7 Tabs:\n1.Resume 2.Consultations\n3.Exams 4.Diagnostics\n5.Prescriptions 6.Vaccinations\n7.Documents
+app --> user: ✓ Dossier Complet
+
+@enduml

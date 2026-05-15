@@ -1,0 +1,710 @@
+{
+  "info": {
+    "_postman_id": "esante-api-collection",
+    "name": "E-Santé API Collection",
+    "description": "Collection des endpoints API E-Santé",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost/esante/backend/public",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "patientId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "doctorId", 
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentification",
+      "item": [
+        {
+          "name": "Santé API",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Inscription",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@esante.com\",\n  \"password\": \"SecurePass123\",\n  \"full_name\": \"New User\",\n  \"phone\": \"77123456\",\n  \"role\": \"patient\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Connexion",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test_patient@esante.com\",\n  \"password\": \"password\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Vérifier Token",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-token",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "verify-token"]
+            }
+          }
+        },
+        {
+          "name": "Rafraîchir Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh-token",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh-token"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Patient",
+      "item": [
+        {
+          "name": "Obtenir Profil",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patient/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["patient", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Mettre à jour Profil",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"77999999\",\n  \"email\": \"updated@esante.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/patient/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["patient", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Obtenir Enfants",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patient/children",
+              "host": ["{{baseUrl}}"],
+              "path": ["patient", "children"]
+            }
+          }
+        },
+        {
+          "name": "Carte NFC",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patient/nfc-card",
+              "host": ["{{baseUrl}}"],
+              "path": ["patient", "nfc-card"]
+            }
+          }
+        },
+        {
+          "name": "Basculer vers Enfant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patient/switch-to-child/2",
+              "host": ["{{baseUrl}}"],
+              "path": ["patient", "switch-to-child", "2"]
+            }
+          }
+        },
+        {
+          "name": "Retourner au Parent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patient/return-to-parent",
+              "host": ["{{baseUrl}}"],
+              "path": ["patient", "return-to-parent"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dossier Médical",
+      "item": [
+        {
+          "name": "Résumé Dossier",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/medical-dossier/{{patientId}}/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["medical-dossier", "{{patientId}}", "summary"]
+            }
+          }
+        },
+        {
+          "name": "Mettre à jour Antécédents",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": {{patientId}},\n  \"medical_conditions\": \"Asthme léger\",\n  \"family_history\": \"Diabète chez la mère\",\n  \"blood_group\": \"O+\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/medical-dossier/medical-history",
+              "host": ["{{baseUrl}}"],
+              "path": ["medical-dossier", "medical-history"]
+            }
+          }
+        },
+        {
+          "name": "Consultations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/medical-dossier/{{patientId}}/consultations?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["medical-dossier", "{{patientId}}", "consultations"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Examens",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/medical-dossier/{{patientId}}/exams?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["medical-dossier", "{{patientId}}", "exams"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Vaccinations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/medical-dossier/{{patientId}}/vaccinations?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["medical-dossier", "{{patientId}}", "vaccinations"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Documents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/medical-dossier/{{patientId}}/documents?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["medical-dossier", "{{patientId}}", "documents"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rendez-vous",
+      "item": [
+        {
+          "name": "Créer RDV",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": {{patientId}},\n  \"doctor_id\": {{doctorId}},\n  \"appointment_date\": \"2026-05-15 10:00:00\",\n  \"reason_for_appointment\": \"Consultation générale\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/appointments",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments"]
+            }
+          }
+        },
+        {
+          "name": "RDV du Patient",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/patient?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "patient"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "RDV du Médecin",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/appointments/doctor/{{doctorId}}?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "doctor", "{{doctorId}}"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Changer Statut RDV",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"appointment_status\": \"confirmed\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/appointments/1/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "1", "status"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ordonnances",
+      "item": [
+        {
+          "name": "Créer Ordonnance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": {{patientId}},\n  \"doctor_id\": {{doctorId}},\n  \"consultation_id\": 1,\n  \"medications\": [\n    {\n      \"medication_name\": \"Paracétamol\",\n      \"dosage\": \"500mg\",\n      \"frequency\": \"3x par jour\",\n      \"duration_days\": 7\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/prescriptions",
+              "host": ["{{baseUrl}}"],
+              "path": ["prescriptions"]
+            }
+          }
+        },
+        {
+          "name": "Mes Ordonnances",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/prescriptions/patient?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["prescriptions", "patient"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Détails Ordonnance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/prescriptions/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["prescriptions", "1"]
+            }
+          }
+        },
+        {
+          "name": "Changer Statut Ordonnance",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prescription_status\": \"completed\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/prescriptions/1/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["prescriptions", "1", "status"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Examens",
+      "item": [
+        {
+          "name": "Prescrire Examen",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": {{patientId}},\n  \"doctor_id\": {{doctorId}},\n  \"exam_type\": \"Prise de sang\",\n  \"speciality_id\": 1,\n  \"urgency_level\": \"normal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/exams/prescribe",
+              "host": ["{{baseUrl}}"],
+              "path": ["exams", "prescribe"]
+            }
+          }
+        },
+        {
+          "name": "Mes Examens",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/exams/patient?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["exams", "patient"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Détails Examen",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/exams/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["exams", "1"]
+            }
+          }
+        },
+        {
+          "name": "Enregistrer Résultats",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"results\": [\n    {\n      \"test_name\": \"Glucose\",\n      \"measured_value\": 105,\n      \"unit\": \"mg/dL\",\n      \"reference_min\": 70,\n      \"reference_max\": 100,\n      \"interpretation\": \"Légèrement élevé\"\n    }\n  ],\n  \"result_interpretation\": \"abnormal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/exams/1/record-results",
+              "host": ["{{baseUrl}}"],
+              "path": ["exams", "1", "record-results"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

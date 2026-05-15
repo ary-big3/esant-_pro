@@ -1,0 +1,87 @@
+@startuml "Architecture - Vue d'Ensemble"
+title Architecture Système E-Santé Complète
+
+!define ELEMENT_STYLE fill:#4A90E2,stroke:#333,stroke-width:2,color:#fff
+
+box "🖥️ FRONTEND - Flutter Mobile App" #4A90E2
+  component "Login/Register\nScreen" as auth
+  component "Patient Home\n(7 tabs)" as patient_home
+  component "Doctor Home\n(Search + Dossier)" as doctor_home
+  component "Nurse Dashboard\n(Patients + Vitals)" as nurse_home
+  component "Lab Dashboard\n(Exams + Results)" as lab_home
+  component "Admin Portal\n(Statistics + Users)" as admin_home
+end box
+
+box "🔧 SERVICES LAYER - Dart" #50C878
+  component "AuthService\n(Login/Register)" as auth_service
+  component "PatientService\n(Dossier, Vitals)" as patient_service
+  component "DoctorService\n(Search, Consultation)" as doctor_service
+  component "NurseService\n(Patients, Vitals)" as nurse_service
+  component "LabService\n(Exams, Results)" as lab_service
+  component "AdminService\n(Stats, Users)" as admin_service
+  component "ApiService\n(HTTP, Auth, Errors)" as api_service
+end box
+
+box "🌐 BACKEND API - PHP Laravel" #FFB800
+  component "AuthController\n(/auth/login, register)" as auth_ctrl
+  component "PatientController\n(/patient/profile, dossier)" as patient_ctrl
+  component "DoctorController\n(/patients/search, consultations)" as doctor_ctrl
+  component "NurseController\n(/nurse/patients, vitals)" as nurse_ctrl
+  component "LabController\n(/lab/exams, results)" as lab_ctrl
+  component "AdminController\n(/admin/stats, users)" as admin_ctrl
+  component "NotificationService\n(Send alerts to users)" as notif_service
+end box
+
+box "💾 DATABASE - MySQL" #FF6B6B
+  database "users\n(patients, doctors, nurses)" as users_table
+  database "consultations\ndiagnostics" as consult_table
+  database "exams\nresults" as exams_table
+  database "prescriptions\nvaccinations" as prescriptions_table
+  database "vitals\nmeasurements" as vitals_table
+  database "access_requests\npermissions" as access_table
+end box
+
+auth --> auth_service
+patient_home --> patient_service
+doctor_home --> doctor_service
+nurse_home --> nurse_service
+lab_home --> lab_service
+admin_home --> admin_service
+
+auth_service --> api_service
+patient_service --> api_service
+doctor_service --> api_service
+nurse_service --> api_service
+lab_service --> api_service
+admin_service --> api_service
+
+api_service --> auth_ctrl
+api_service --> patient_ctrl
+api_service --> doctor_ctrl
+api_service --> nurse_ctrl
+api_service --> lab_ctrl
+api_service --> admin_ctrl
+
+auth_ctrl --> users_table
+patient_ctrl --> users_table
+patient_ctrl --> consult_table
+patient_ctrl --> exams_table
+patient_ctrl --> prescriptions_table
+patient_ctrl --> vitals_table
+
+doctor_ctrl --> users_table
+doctor_ctrl --> consult_table
+doctor_ctrl --> exams_table
+doctor_ctrl --> prescriptions_table
+
+nurse_ctrl --> users_table
+nurse_ctrl --> vitals_table
+
+lab_ctrl --> exams_table
+lab_ctrl --> users_table
+
+admin_ctrl --> users_table
+
+notif_service --> users_table
+
+@enduml

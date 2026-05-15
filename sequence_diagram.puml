@@ -1,0 +1,24 @@
+@startuml "Authentification - Login"
+title Authentification - Login/Register
+
+participant "Utilisateur" as user
+participant "Flutter App" as flutter
+participant "AuthService" as auth
+participant "ApiService" as api
+participant "Backend PHP" as backend
+participant "MySQL" as db
+
+user -> flutter: Clique "Login"
+flutter -> auth: login(email, password)
+auth -> api: POST /auth/login
+api -> backend: HTTP POST
+backend -> db: SELECT * FROM users
+db --> backend: User found
+backend -> backend: JWT Token
+backend --> api: {token, user_data, role}
+api --> auth: JSON Response
+auth -> auth: saveToken()\nsaveUserData()
+flutter -> flutter: Route to Home
+flutter --> user: ✓ Logged In
+
+@enduml

@@ -1,0 +1,25 @@
+@startuml "Medecin - Rechercher Patient"
+title Médecin - Rechercher Patient
+
+participant "Doctor" as doctor
+participant "Doctor App" as app
+participant "SearchService" as service
+participant "ApiService" as api
+participant "Backend" as backend
+participant "Database" as db
+
+doctor -> app: Ouvre "Rechercher Patient"
+doctor -> app: Tape nom/prénom/numéro sécu
+app -> service: searchPatient(query)
+service -> api: GET /patients/search?q={query}\n[Bearer DOCTOR_TOKEN]
+api -> backend: HTTP GET
+backend -> db: SELECT * FROM patients\nWHERE nom LIKE ? OR prenom LIKE ?\nOR numero_secu LIKE ?
+db --> backend: Patients found
+backend --> api: [{id, nom, prenom, age, ...}]
+api --> service: Results
+service --> app: Display list
+app --> doctor: ✓ Patients displayed
+doctor -> app: Click patient
+app -> app: Open "Dossier Patient"
+
+@enduml

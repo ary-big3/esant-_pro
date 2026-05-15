@@ -1,0 +1,28 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Définir la base du répertoire
+    RewriteBase /esante/backend/public/
+    
+    # ⚠️ IMPORTANT: Préserver le header Authorization lors de la réécriture
+    # Sans cette ligne, les headers personnalisés peuvent être perdus
+    RewriteCond %{HTTP:Authorization} ^(.*)$
+    RewriteRule ^(.*)$ - [E=HTTP_AUTHORIZATION:%1]
+    
+    # Ignorer les fichiers et dossiers réels
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    
+    # Rediriger toutes les requêtes vers index.php
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
+
+# Headers de sécurité
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    Header set X-XSS-Protection "1; mode=block"
+    
+    # ⚠️ IMPORTANT: Autoriser le header Authorization dans les réponses
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+</IfModule>

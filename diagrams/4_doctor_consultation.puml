@@ -1,0 +1,50 @@
+@startuml "Medecin - Creer Consultation"
+title Médecin - Créer Consultation et Prescrire
+
+participant "Doctor" as doctor
+participant "Doctor App" as app
+participant "ConsultService" as service
+participant "ApiService" as api
+participant "Backend" as backend
+participant "Database" as db
+
+doctor -> app: Open patient dossier
+app -> service: getPatientDossier(patient_id)
+service -> api: GET /medical-dossier/{id}\n[Bearer TOKEN]
+api -> backend: HTTP GET
+backend -> db: SELECT consultations, exams,\nprescriptions, vaccinations
+db --> backend: Patient history
+backend --> api: JSON
+api --> app: Display with 7 tabs
+app --> doctor: ✓ Dossier displayed
+
+doctor -> app: Create "Consultation"
+app -> service: createConsultation(\n{patient_id, diagnosis, treatment})
+service -> api: POST /consultations
+api -> backend: HTTP POST\n{patient_id, physician_id, symptoms,\ndiagnosis, treatment}
+backend -> db: INSERT INTO consultations\nINSERT INTO diagnostics
+db --> backend: Consultation created (ID: 123)
+backend --> api: {id: 123, status: success}
+api --> app: ✓ Saved
+
+doctor -> app: Prescribe "Examen"
+app -> service: prescribeExam({exam_type, notes})
+service -> api: POST /exams/prescribe
+api -> backend: HTTP POST
+backend -> db: INSERT INTO exams
+db --> backend: Exam created
+backend --> api: {exam_id}
+api --> app: ✓ Exam prescribed
+
+doctor -> app: Prescribe "Ordonnance"
+app -> service: prescribeOrdonnance({medications})
+service -> api: POST /prescribe-ordonnance
+api -> backend: HTTP POST
+backend -> db: INSERT INTO prescriptions
+db --> backend: Ordonnance created
+backend --> api: {prescription_id}
+api --> app: ✓ Prescription saved
+
+app --> doctor: ✓ All data saved
+
+@enduml

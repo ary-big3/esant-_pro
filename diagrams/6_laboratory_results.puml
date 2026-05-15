@@ -1,0 +1,41 @@
+@startuml "Laboratory - Exams et Resultats"
+title Laboratoire - Enregistrer Résultats d'Examens
+
+participant "Lab Staff" as labo
+participant "Lab App" as app
+participant "LabService" as service
+participant "ApiService" as api
+participant "Backend" as backend
+participant "Database" as db
+
+labo -> app: Open Laboratory Dashboard
+app -> service: getExamsPending()
+service -> api: GET /lab/exams/pending\n[Bearer LAB_TOKEN]
+api -> backend: HTTP GET
+backend -> db: SELECT * FROM exams\nWHERE status = 'pending'\nAND assigned_to_lab = ?
+db --> backend: Pending exams
+backend --> api: {exams: [{id, patient, type, ...}]}
+api --> app: Display exams list
+app --> labo: ✓ Exams shown
+
+labo -> app: Select exam
+app -> app: Display form
+labo -> app: Enter results (values, observations)
+labo -> app: Click "Validate Results"
+app -> service: submitExamResults(\n{exam_id, results, observations})
+service -> api: PUT /exams/{id}/results
+api -> backend: HTTP PUT\n{results, observations,\nlab_technician_id, date}
+backend -> db: UPDATE exams\nSET results = ?, status = 'completed'
+db --> backend: Update OK
+backend -> backend: Generate notification
+backend --> api: {status: 'success'}
+api --> app: ✓ Results sent
+
+note over labo, db
+  AFTER VALIDATION:
+  → Patient receives NOTIFICATION
+  → Patient sees results in "Exams" tab
+  → Doctor can see results in dossier
+end note
+
+@enduml

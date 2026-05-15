@@ -1,0 +1,53 @@
+@startuml "Admin - Dashboard et Gestion"
+title Administrateur - Dashboard et Gestion Utilisateurs
+
+participant "Admin" as admin
+participant "Admin Portal" as app
+participant "AdminService" as service
+participant "ApiService" as api
+participant "Backend" as backend
+participant "Database" as db
+
+admin -> app: Open Admin Dashboard
+app -> service: getStatistics()
+service -> api: GET /admin/statistics\n[Bearer ADMIN_TOKEN]
+api -> backend: HTTP GET
+backend -> db: SELECT COUNT(*) patients,\nCOUNT(*) doctors,\nCOUNT(*) consultations,\nCOUNT(*) exams
+db --> backend: Statistics
+backend --> api: {stats}
+api --> app: Display statistics
+app --> admin: ✓ Dashboard visible
+
+admin -> app: Click "Manage Users"
+app -> service: getAllUsers()
+service -> api: GET /admin/users
+api -> backend: HTTP GET
+backend -> db: SELECT * FROM users
+db --> backend: All users
+backend --> api: {users: [...]}
+api --> app: Display users list
+app --> admin: ✓ Users list
+
+admin -> app: Click user to modify
+admin -> app: Change role (Doctor/Nurse/Pharmacist/Lab)
+app -> service: updateUserRole({user_id, role})
+service -> api: PUT /admin/users/{id}/role
+api -> backend: HTTP PUT
+backend -> db: UPDATE users SET role = ?
+db --> backend: Update OK
+backend --> api: {status: 'success'}
+api --> app: ✓ Role updated
+app --> admin: ✓ Changes saved
+
+note over admin, db
+  Admin can:
+  ✓ View all users
+  ✓ Create/modify/delete roles
+  ✓ View global statistics
+  ✓ Manage medical specialties
+  ✓ Assign patients to labs/nurses
+  ✓ Generate reports
+  ✓ Monitor system health
+end note
+
+@enduml
