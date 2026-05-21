@@ -44,7 +44,7 @@ class PrescriptionController {
                 $errors['received_consultation_id'] = $input['consultation_id'] ?? 'NOT_PROVIDED';
                 $errors['received_medications'] = !empty($input['medications']) ? 'YES' : 'NO';
                 error_log('❌ [PrescriptionController::create] Erreurs: ' . json_encode($errors));
-                Response::badRequest('Données invalides', HTTP_BAD_REQUEST, $errors);
+                Response::badRequest('Données invalides', $errors);
             }
 
             // Récupérer le doctor_id
@@ -380,6 +380,314 @@ class PrescriptionController {
     }
 
     /**
+     * Ajouter un médicament prédéfini à une prescription
+     */
+    public function addPrescriptionMedication($prescriptionId) {
+        try {
+            $user = AuthMiddleware::verifyAuth();
+            AuthMiddleware::verifyRole(ROLE_MEDECIN, $user['role']);
+
+            $input = json_decode(file_get_contents('php://input'), true);
+
+            if (!$input) {
+                Response::badRequest('Données JSON invalides');
+            }
+
+            $validator = new Validator();
+            $validator->validateRequired($input['ref_medication_id'] ?? null, 'ref_medication_id');
+
+            if ($validator->hasErrors()) {
+                Response::badRequest('Données invalides', $validator->getErrors());
+            }
+
+            // Vérifier que la prescription existe et que le médecin est propriétaire
+            $stmt = $this->db->prepare('SELECT doctor_id FROM prescriptions WHERE prescription_id = ?');
+            $stmt->bind_param('i', $prescriptionId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows === 0) {
+                Response::notFound('Ordonnance non trouvée');
+            }
+            $prescriptionRow = $result->fetch_assoc();
+            $stmt->close();
+
+            // Vérifier l'autorisation
+            $stmt = $this->db->prepare('SELECT doctor_id FROM doctors WHERE user_id = ?');
+            $stmt->bind_param('i', $user['user_id']);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows === 0) {
+                Response::forbidden('Accès refusé');
+            }
+            $currentDoctorId = $result->fetch_assoc()['doctor_id'];
+            $stmt->close();
+
+            if ($prescriptionRow['doctor_id'] !== $currentDoctorId) {
+                Response::forbidden('Vous ne pouvez pas modifier cette ordonnance');
+            }
+
+            $refMedicationId = $input['ref_medication_id'];
+            
+            // Récupérer le médicament de référence
+            $stmt = $this->db->prepare(
+                'SELECT * FROM medication WHERE medication_id = ? AND is_active = 1'
+            );
+            $stmt->bind_param('i', $refMedicationId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows === 0) {
+                Response::notFound('Médicament non trouvé');
+            }
+            $medication = $result->fetch_assoc();
+            $stmt->close();
+
+            // Récupérer le numéro de séquence suivant
+            $stmt = $this->db->prepare(
+                'SELECT MAX(sequence_order) as max_order FROM prescription_medications WHERE prescription_id = ?'
+            );
+            $stmt->bind_param('i', $prescriptionId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $sequenceRow = $result->fetch_assoc();
+            $sequenceOrder = ($sequenceRow['max_order'] ?? 0) + 1;
+            $stmt->close();
+
+            // Gérer les personnalisations optionnelles
+            $dosage = $input['dosage'] ?? $medication['dosage'];
+            $dosageUnit = $input['dosage_unit'] ?? $medication['dosage_unit'];
+            $frequency = $input['frequency'] ?? $medication['frequency'];
+            $duration = $input['duration'] ?? $medication['default_duration'];
+            $route = $input['route_of_administration'] ?? $medication['route_of_administration'];
+            $instructions = $input['special_instructions'] ?? null;
+            $isEssential = isset($input['is_essential']) ? (int)$input['is_essential'] : 0;
+
+            // Ajouter le médicament à la prescription
+            $stmt = $this->db->prepare(
+                'INSERT INTO prescription_medications (prescription_id, ref_medication_id, medication_name, dosage, dosage_unit, frequency, duration, route_of_administration, special_instructions, is_essential, sequence_order)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            $stmt->bind_param('iissssissii', $prescriptionId, $refMedicationId, $medication['medication_name'], $dosage, $dosageUnit, $frequency, $duration, $route, $instructions, $isEssential, $sequenceOrder);
+
+            if (!$stmt->execute()) {
+                throw new Exception('Erreur lors de l\'ajout du médicament');
+            }
+
+            $medicationId = $this->db->insert_id;
+            $stmt->close();
+
+            Response::created([
+                'medication_id' => $medicationId,
+                'ref_medication_id' => $refMedicationId,
+                'medication_name' => $medication['medication_name']
+            ], 'Médicament ajouté avec succès');
+
+        } catch (Exception $e) {
+            error_log('Add Prescription Medication Error: ' . $e->getMessage());
+            Response::error('Erreur lors de l\'ajout: ' . $e->getMessage(), HTTP_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Retirer un médicament d'une prescription
+     */
+    public function removePrescriptionMedication($prescriptionId, $medicationId) {
+        try {
+            $user = AuthMiddleware::verifyAuth();
+            AuthMiddleware::verifyRole(ROLE_MEDECIN, $user['role']);
+
+            // Vérifier que la prescription existe et que le médecin est propriétaire
+            $stmt = $this->db->prepare('SELECT doctor_id FROM prescriptions WHERE prescription_id = ?');
+            $stmt->bind_param('i', $prescriptionId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows === 0) {
+                Response::notFound('Ordonnance non trouvée');
+            }
+            $prescriptionRow = $result->fetch_assoc();
+            $stmt->close();
+
+            // Vérifier l'autorisation
+            $stmt = $this->db->prepare('SELECT doctor_id FROM doctors WHERE user_id = ?');
+            $stmt->bind_param('i', $user['user_id']);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows === 0) {
+                Response::forbidden('Accès refusé');
+            }
+            $currentDoctorId = $result->fetch_assoc()['doctor_id'];
+            $stmt->close();
+
+            if ($prescriptionRow['doctor_id'] !== $currentDoctorId) {
+                Response::forbidden('Vous ne pouvez pas modifier cette ordonnance');
+            }
+
+            // Supprimer le médicament
+            $stmt = $this->db->prepare(
+                'DELETE FROM prescription_medications WHERE medication_id = ? AND prescription_id = ?'
+            );
+            $stmt->bind_param('ii', $medicationId, $prescriptionId);
+
+            if (!$stmt->execute()) {
+                throw new Exception('Erreur lors de la suppression du médicament');
+            }
+
+            if ($stmt->affected_rows === 0) {
+                Response::notFound('Médicament non trouvé dans cette ordonnance');
+            }
+
+            $stmt->close();
+
+            Response::success([], 'Médicament retiré avec succès');
+
+        } catch (Exception $e) {
+            error_log('Remove Prescription Medication Error: ' . $e->getMessage());
+            Response::error('Erreur lors de la suppression: ' . $e->getMessage(), HTTP_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Créer rapidement une prescription à partir de médicaments sélectionnés
+     */
+    public function quickCreateFromMedications() {
+        try {
+            $user = AuthMiddleware::verifyAuth();
+            AuthMiddleware::verifyRole(ROLE_MEDECIN, $user['role']);
+
+            $input = json_decode(file_get_contents('php://input'), true);
+
+            if (!$input) {
+                Response::badRequest('Données JSON invalides');
+            }
+
+            $validator = new Validator();
+            $validator->validateRequired($input['patient_id'] ?? null, 'patient_id');
+            $validator->validateRequired($input['medication_ids'] ?? null, 'medication_ids');
+
+            if ($validator->hasErrors()) {
+                Response::badRequest('Données invalides', $validator->getErrors());
+            }
+
+            // Récupérer le doctor_id
+            $stmt = $this->db->prepare('SELECT doctor_id FROM doctors WHERE user_id = ?');
+            $stmt->bind_param('i', $user['user_id']);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows === 0) {
+                Response::forbidden('Médecin non trouvé');
+            }
+            $doctorId = $result->fetch_assoc()['doctor_id'];
+            $stmt->close();
+
+            $patientId = $input['patient_id'];
+            $medicationIds = $input['medication_ids'];
+            $prescriptionNumber = 'RX-' . date('YmdHis');
+            $issueDate = date('Y-m-d');
+            $expiryDate = $input['expiry_date'] ?? date('Y-m-d', strtotime('+3 months'));
+            $status = PRESCRIPTION_ACTIVE;
+            $notes = $input['notes'] ?? null;
+            $now = date('Y-m-d H:i:s');
+
+            // Créer une consultation automatiquement
+            $consultStmt = $this->db->prepare(
+                'INSERT INTO consultations (patient_id, doctor_id, consultation_date, consultation_type, consultation_status, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)'
+            );
+            $consultationType = 'suivi';
+            $consultationStatus = 'completed';
+            $consultStmt->bind_param('isssss', $patientId, $doctorId, $now, $consultationType, $consultationStatus, $now);
+
+            if (!$consultStmt->execute()) {
+                throw new Exception('Erreur lors de la création de la consultation');
+            }
+
+            $consultationId = $this->db->insert_id;
+            $consultStmt->close();
+
+            // Créer la prescription
+            $stmt = $this->db->prepare(
+                'INSERT INTO prescriptions (consultation_id, patient_id, doctor_id, prescription_number, issue_date, expiry_date, status, notes, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            $stmt->bind_param('iisssssss', $consultationId, $patientId, $doctorId, $prescriptionNumber, $issueDate, $expiryDate, $status, $notes, $now);
+
+            if (!$stmt->execute()) {
+                throw new Exception('Erreur lors de la création de l\'ordonnance');
+            }
+
+            $prescriptionId = $this->db->insert_id;
+            $stmt->close();
+
+            // Ajouter les médicaments sélectionnés
+            $addedMedications = [];
+            foreach ($medicationIds as $index => $medId) {
+                $medId = (int)$medId;
+                
+                // Récupérer le médicament
+                $stmt = $this->db->prepare(
+                    'SELECT * FROM medication WHERE medication_id = ? AND is_active = 1'
+                );
+                $stmt->bind_param('i', $medId);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                
+                if ($result->num_rows === 0) {
+                    error_log("⚠️ Médicament $medId non trouvé");
+                    $stmt->close();
+                    continue;
+                }
+
+                $medication = $result->fetch_assoc();
+                $stmt->close();
+
+                $sequenceOrder = $index + 1;
+                $dosage = $medication['dosage'];
+                $dosageUnit = $medication['dosage_unit'];
+                $frequency = $medication['frequency'];
+                $duration = $medication['default_duration'];
+                $route = $medication['route_of_administration'];
+
+                // Ajouter le médicament à la prescription
+                $stmt = $this->db->prepare(
+                    'INSERT INTO prescription_medications (prescription_id, ref_medication_id, medication_name, dosage, dosage_unit, frequency, duration, route_of_administration, sequence_order)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                );
+                $stmt->bind_param('iisssssii', $prescriptionId, $medId, $medication['medication_name'], $dosage, $dosageUnit, $frequency, $duration, $route, $sequenceOrder);
+
+                if ($stmt->execute()) {
+                    $addedMedications[] = [
+                        'medication_id' => $medId,
+                        'medication_name' => $medication['medication_name']
+                    ];
+                }
+                $stmt->close();
+            }
+
+            // Créer une notification pour le patient
+            $stmtPatientUser = $this->db->prepare('SELECT user_id FROM patients WHERE patient_id = ?');
+            $stmtPatientUser->bind_param('i', $patientId);
+            $stmtPatientUser->execute();
+            $patientUserResult = $stmtPatientUser->get_result();
+            if ($patientUserResult->num_rows > 0) {
+                $patientUserRow = $patientUserResult->fetch_assoc();
+                $patientUserId = $patientUserRow['user_id'];
+                $this->createNotification($patientUserId, 'alert', 'Nouvelle ordonnance', 'Une nouvelle ordonnance vous a été prescrite');
+            }
+            $stmtPatientUser->close();
+
+            Response::created([
+                'prescription_id' => $prescriptionId,
+                'prescription_number' => $prescriptionNumber,
+                'status' => $status,
+                'medications_added' => count($addedMedications),
+                'medications' => $addedMedications
+            ], 'Ordonnance créée avec succès');
+
+        } catch (Exception $e) {
+            error_log('Quick Create Prescription Error: ' . $e->getMessage());
+            Response::error('Erreur lors de la création: ' . $e->getMessage(), HTTP_SERVER_ERROR);
+        }
+    }
+    /**
      * Mettre à jour le statut d'une ordonnance
      */
     public function updateStatus($prescriptionId) {
@@ -398,7 +706,7 @@ class PrescriptionController {
             $validator->validateEnum($input['status'], ['active', 'expired', 'completed', 'cancelled'], 'status');
 
             if ($validator->hasErrors()) {
-                Response::badRequest('Données invalides', HTTP_BAD_REQUEST, $validator->getErrors());
+                Response::badRequest('Données invalides', $validator->getErrors());
             }
 
             $status = $input['status'];

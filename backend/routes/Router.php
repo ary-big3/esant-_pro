@@ -194,6 +194,21 @@ class Router {
                 $this->callController('PrescriptionController', 'updateStatus', ['prescriptionId']);
             }
 
+            // Routes Médicaments
+            elseif ($this->matchRoute('GET', 'medications')) {
+                $this->callController('MedicationController', 'getAllMedications');
+            } elseif ($this->matchRoute('GET', 'medications/categories')) {
+                $this->callController('MedicationController', 'getMedicationCategories');
+            } elseif ($this->matchRoute('GET', 'medications/category/{category}')) {
+                $this->callController('MedicationController', 'getMedicationsByCategory', ['category']);
+            } elseif ($this->matchRoute('GET', 'medications/{medicationId}')) {
+                $this->callController('MedicationController', 'getMedicationById', ['medicationId']);
+            } elseif ($this->matchRoute('POST', 'medications')) {
+                $this->callController('MedicationController', 'create');
+            } elseif ($this->matchRoute('PUT', 'medications/{medicationId}')) {
+                $this->callController('MedicationController', 'update', ['medicationId']);
+            }
+
             // Routes Examens
             elseif ($this->matchRoute('POST', 'exams')) {
                 $this->callController('ExamController', 'prescribeExam');
@@ -356,6 +371,12 @@ class Router {
                 $this->callController('ExamController', 'prescribeExam');
             } elseif ($this->matchRoute('POST', 'doctor/prescriptions/create')) {
                 $this->callController('PrescriptionController', 'create');
+            } elseif ($this->matchRoute('POST', 'doctor/prescriptions/quick-create')) {
+                $this->callController('PrescriptionController', 'quickCreateFromMedications');
+            } elseif ($this->matchRoute('POST', 'prescriptions/{prescriptionId}/medications')) {
+                $this->callController('PrescriptionController', 'addPrescriptionMedication', ['prescriptionId']);
+            } elseif ($this->matchRoute('DELETE', 'prescriptions/{prescriptionId}/medications/{medicationId}')) {
+                $this->callController('PrescriptionController', 'removePrescriptionMedication', ['prescriptionId', 'medicationId']);
             }
 
             // Routes Administration
@@ -381,6 +402,8 @@ class Router {
                 $page = $_GET['page'] ?? 1;
                 $limit = $_GET['limit'] ?? DEFAULT_PAGE_SIZE;
                 $this->callController('AdminController', 'getUserActivities', [$page, $limit]);
+            } elseif ($this->matchRoute('GET', 'admin/specialities')) {
+                $this->callController('AdminController', 'getAllSpecialities');
             }
 
             // Route statut

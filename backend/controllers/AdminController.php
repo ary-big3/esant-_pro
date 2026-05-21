@@ -467,5 +467,31 @@ class AdminController {
             Response::error($e->getMessage(), HTTP_SERVER_ERROR);
         }
     }
+
+    /**
+     * Obtenir toutes les spécialités disponibles
+     */
+    public function getAllSpecialities() {
+        try {
+            $user = AuthMiddleware::verifyAuth();
+            AuthMiddleware::verifyRole(ROLE_ADMIN, $user['role']);
+
+            $stmt = $this->db->prepare('SELECT speciality_id, name as speciality_name FROM specialities WHERE is_active = 1 ORDER BY name ASC');
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            $specialities = [];
+            while ($row = $result->fetch_assoc()) {
+                $specialities[] = $row;
+            }
+            $stmt->close();
+
+            Response::success($specialities, 'Spécialités récupérées');
+
+        } catch (Exception $e) {
+            error_log('Get Specialities Error: ' . $e->getMessage());
+            Response::error('Erreur lors de la récupération: ' . $e->getMessage(), HTTP_SERVER_ERROR);
+        }
+    }
 }
 ?>
