@@ -7,7 +7,7 @@ import '../../models/security_audit_consent_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
 import '../../utils/token_helper.dart';
-import '../auth/login_screen.dart';
+import '../auth/welcome_screen.dart';
 import 'patient_home_screen.dart';
 import 'patient_medical_history_screen.dart';
 
@@ -437,9 +437,9 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                   (route) => false,
                 );
               } else {
-                // Aller au login
+                // Aller à la page d'accueil
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  MaterialPageRoute(builder: (context) => const WelcomeScreen()),
                   (route) => false,
                 );
               }

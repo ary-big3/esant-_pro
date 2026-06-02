@@ -698,6 +698,56 @@ CREATE TABLE doctor_patient_requests (
     INDEX idx_requested_at (requested_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `medication` (
+  `medication_id` int(11) NOT NULL,
+  `medication_name` varchar(255) NOT NULL,
+  `generic_name` varchar(255) DEFAULT NULL,
+  `dosage` varchar(50) NOT NULL,
+  `dosage_unit` varchar(20) NOT NULL DEFAULT 'mg',
+  `frequency` varchar(50) NOT NULL DEFAULT '1x/jour',
+  `default_duration` int(11) NOT NULL DEFAULT 7,
+  `route_of_administration` varchar(50) NOT NULL DEFAULT 'oral',
+  `category` varchar(100) NOT NULL,
+  `is_active` tinyint(1) DEFAULT 1,
+  `description` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Déchargement des données de la table `medication`
+--
+
+INSERT INTO `medication` (`medication_id`, `medication_name`, `generic_name`, `dosage`, `dosage_unit`, `frequency`, `default_duration`, `route_of_administration`, `category`, `is_active`, `description`, `created_at`, `updated_at`) VALUES
+(1, 'Amoxicilline', 'amoxicilline', '500', 'mg', '3x/jour', 7, 'oral', 'Antibiotique', 1, 'Antibiotique beta-lactamines à large spectre', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(2, 'Amoxicilline-Acide clavulanique', 'amoxicilline/acide clavulanique', '500/125', 'mg', '3x/jour', 7, 'oral', 'Antibiotique', 1, 'Antibiotique avec inhibiteur de bêta-lactamase', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(3, 'Azithromycine', 'azithromycine', '500', 'mg', '1x/jour', 5, 'oral', 'Antibiotique', 1, 'Macrolide pour infections respiratoires', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(4, 'Ciprofloxacine', 'ciprofloxacine', '500', 'mg', '2x/jour', 7, 'oral', 'Antibiotique', 1, 'Fluoroquinolone à large spectre', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(5, 'Ceftriaxone', 'ceftriaxone', '1', 'g', '2x/jour', 7, 'injectable', 'Antibiotique', 1, 'Céphalosporine de 3e génération', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(6, 'Paracétamol', 'paracétamol', '500', 'mg', '3x/jour', 3, 'oral', 'Antalgique', 1, 'Antalgique et antipyrétique', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(7, 'Ibuprofen', 'ibuprofène', '200', 'mg', '3x/jour', 5, 'oral', 'Anti-inflammatoire', 1, 'AINS pour douleurs et inflammations', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(8, 'Diclofenac', 'diclofénac', '50', 'mg', '2x/jour', 5, 'oral', 'Anti-inflammatoire', 1, 'AINS pour douleurs modérées', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(9, 'Acide acétylsalicylique', 'acide acétylsalicylique', '500', 'mg', '2x/jour', 3, 'oral', 'Antalgique', 1, 'Aspirine pour douleurs légères', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(10, 'Cetirizine', 'cétirizine', '10', 'mg', '1x/jour', 7, 'oral', 'Antihistaminique', 1, 'Antihistaminique non-sédatif', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(11, 'Loratadine', 'loratadine', '10', 'mg', '1x/jour', 7, 'oral', 'Antihistaminique', 1, 'Antihistaminique pour rhinite allergique', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(12, 'Dexaméthasone', 'dexaméthasone', '0.5', 'mg', '3x/jour', 5, 'oral', 'Corticostéroïde', 1, 'Corticostéroïde anti-inflammatoire', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(13, 'Métoclopramide', 'métoclopramide', '10', 'mg', '3x/jour', 5, 'oral', 'Anti-nausées', 1, 'Antiémétique et prokinétique', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(14, 'Dompéridone', 'dompéridone', '10', 'mg', '3x/jour', 5, 'oral', 'Anti-nausées', 1, 'Antiémétique pour nausées', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(15, 'Oméprazole', 'oméprazole', '20', 'mg', '1x/jour', 7, 'oral', 'Digestif', 1, 'Inhibiteur de pompe à protons', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(16, 'Ranitidine', 'ranitidine', '150', 'mg', '2x/jour', 7, 'oral', 'Digestif', 1, 'Antagoniste H2 pour ulcères', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(17, 'Codéine', 'codéine', '30', 'mg', '3x/jour', 5, 'oral', 'Antitussif', 1, 'Sirop ou comprimés anti-toux', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(18, 'Ambroxol', 'ambroxol', '30', 'mg', '3x/jour', 7, 'oral', 'Expectorant', 1, 'Mucolytique pour toux productive', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(19, 'Salbutamol', 'salbutamol', '100', 'mcg', 'selon besoin', 7, 'inhalée', 'Bronchodilatateur', 1, 'Inhalateur pour asthme', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(20, 'Acyclovir', 'acyclovir', '400', 'mg', '3x/jour', 7, 'oral', 'Antiviral', 1, 'Antiviral pour herpès', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(21, 'Oseltamivir', 'oseltamivir', '75', 'mg', '2x/jour', 5, 'oral', 'Antiviral', 1, 'Traitement grippe', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(22, 'Metformine', 'metformine', '500', 'mg', '2x/jour', 365, 'oral', 'Antidiabétique', 1, 'Biguanide pour diabète type 2', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(23, 'Glibenclamide', 'glibenclamide', '5', 'mg', '1x/jour', 365, 'oral', 'Antidiabétique', 1, 'Sulfonylurée pour diabète type 2', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(24, 'Lisinopril', 'lisinopril', '10', 'mg', '1x/jour', 365, 'oral', 'Antihypertenseur', 1, 'IEC pour hypertension', '2026-05-12 08:43:34', '2026-05-12 08:43:34'),
+(25, 'Aténolol', 'aténolol', '50', 'mg', '1x/jour', 365, 'oral', 'Antihypertenseur', 1, 'Béta-bloquant pour cœur', '2026-05-12 08:43:34', '2026-05-12 08:43:34');
+
+-- --------------------------------------------------------
+
+
 -- =====================================================
 -- INDEXES ADDITIONNELS POUR OPTIMISATION
 -- =====================================================

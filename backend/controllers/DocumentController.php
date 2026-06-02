@@ -17,6 +17,40 @@ class DocumentController {
     }
 
     /**
+     * Normaliser l'URL publique d'un fichier à partir de son chemin en base
+     */
+    private function normalizeFileUrl($filePath) {
+        $filePath = trim(str_replace('\\', '/', (string) $filePath));
+        if ($filePath === '') {
+            return '';
+        }
+
+        if (preg_match('/^https?:\/\//i', $filePath)) {
+            return $filePath;
+        }
+
+        if (strpos($filePath, '/esante/backend/public') === 0 || strpos($filePath, '/backend/public') === 0) {
+            return $filePath;
+        }
+
+        if (strpos($filePath, '/documents/') === 0 || strpos($filePath, '/uploads/') === 0) {
+            return '/esante/backend/public' . $filePath;
+        }
+
+        $pos = stripos($filePath, '/backend/public');
+        if ($pos !== false) {
+            return substr($filePath, $pos);
+        }
+
+        $pos = stripos($filePath, 'backend/public');
+        if ($pos !== false) {
+            return '/' . substr($filePath, $pos);
+        }
+
+        return '/esante/backend/public/uploads/documents/' . basename($filePath);
+    }
+
+    /**
      * Télécharger un document médical
      */
     public function upload() {
@@ -52,19 +86,50 @@ class DocumentController {
                 Response::error('Erreur de sauvegarde du fichier', HTTP_SERVER_ERROR);
             }
 
-            // Récupérer le doctor_id
-            $stmt = $this->db->prepare('SELECT doctor_id FROM doctors WHERE user_id = ?');
-            $stmt->bind_param('i', $user['user_id']);
-            $stmt->execute();
-            $doctorId = $stmt->get_result()->fetch_assoc()['doctor_id'];
-            $stmt->close();
+            $documentTypeMap = [
+                'Bilan' => 'rapport_medical',
+                'Rapport Médical' => 'rapport_medical',
+                'Autre' => 'autre',
+                'Prescription' => 'prescription',
+                'Examen' => 'examen',
+                'Imagerie' => 'imagerie',
+                'Analyse' => 'analyse',
+            ];
+            $documentType = $documentTypeMap[$documentType] ?? 'autre';
+
+            $uploadedBy = $user['user_id'];
+            $fileSizeKb = (int) round($file['size'] / 1024);
+            $fileFormat = strtolower($ext);
+            $documentTitle = $file['name'];
+            $isAvailable = 1;
 
             // Insérer dans la base de données
             $stmt = $this->db->prepare(
-                'INSERT INTO medical_documents (patient_id, doctor_id, document_type, file_name, file_path, description, uploaded_at)
-                 VALUES (?, ?, ?, ?, ?, ?, NOW())'
+                'INSERT INTO medical_documents (
+                    patient_id,
+                    document_type,
+                    document_title,
+                    document_description,
+                    file_path,
+                    file_size_kb,
+                    file_format,
+                    uploaded_by,
+                    is_available_for_download,
+                    created_at
+                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
             );
-            $stmt->bind_param('iisss', $patientId, $doctorId, $documentType, $fileName, $filePath, $description);
+            $stmt->bind_param(
+                'issssiisi',
+                $patientId,
+                $documentType,
+                $documentTitle,
+                $description,
+                $filePath,
+                $fileSizeKb,
+                $fileFormat,
+                $uploadedBy,
+                $isAvailable
+            );
 
             if (!$stmt->execute()) {
                 unlink($filePath);
@@ -74,25 +139,19 @@ class DocumentController {
             $documentId = $stmt->insert_id;
             $stmt->close();
 
-            // Récupérer les infos du médecin
-            $stmt = $this->db->prepare(
-                'SELECT u.full_name FROM doctors d
-                 JOIN users u ON d.user_id = u.user_id
-                 WHERE d.doctor_id = ?'
-            );
-            $stmt->bind_param('i', $doctorId);
-            $stmt->execute();
-            $doctorName = $stmt->get_result()->fetch_assoc()['full_name'];
-            $stmt->close();
+            $uploaderName = $user['full_name'] ?? null;
 
+            $publicUrl = '/esante/backend/public/uploads/documents/' . $fileName;
             Response::success([
                 'document_id' => $documentId,
                 'patient_id' => $patientId,
-                'doctor_id' => $doctorId,
-                'doctor_name' => $doctorName,
+                'uploaded_by' => $uploadedBy,
+                'uploaded_by_name' => $uploaderName,
                 'document_type' => $documentType,
+                'document_title' => $documentTitle,
                 'file_name' => $fileName,
-                'file_path' => '/esante/backend/public/uploads/documents/' . $fileName,
+                'file_path' => $filePath,
+                'file_url' => $publicUrl,
                 'description' => $description,
                 'uploaded_at' => date('Y-m-d H:i:s'),
             ], 'Document téléchargé');
@@ -113,12 +172,11 @@ class DocumentController {
             $offset = ($page - 1) * $limit;
 
             $stmt = $this->db->prepare(
-                'SELECT d.*, u.full_name as doctor_name
+                'SELECT d.*, u.full_name as uploaded_by_name
                  FROM medical_documents d
-                 JOIN doctors dr ON d.doctor_id = dr.doctor_id
-                 JOIN users u ON dr.user_id = u.user_id
+                 LEFT JOIN users u ON d.uploaded_by = u.user_id
                  WHERE d.patient_id = ?
-                 ORDER BY d.uploaded_at DESC
+                 ORDER BY d.created_at DESC
                  LIMIT ? OFFSET ?'
             );
             $stmt->bind_param('iii', $patientId, $limit, $offset);
@@ -127,6 +185,7 @@ class DocumentController {
 
             $documents = [];
             while ($row = $result->fetch_assoc()) {
+                $row['file_url'] = $this->normalizeFileUrl($row['file_path'] ?? '');
                 $documents[] = $row;
             }
             $stmt->close();
@@ -159,7 +218,7 @@ class DocumentController {
             $user = AuthMiddleware::verifyAuth();
             AuthMiddleware::verifyRole(ROLE_MEDECIN, $user['role']);
 
-            $stmt = $this->db->prepare('SELECT file_path, doctor_id FROM medical_documents WHERE document_id = ?');
+            $stmt = $this->db->prepare('SELECT file_path, uploaded_by FROM medical_documents WHERE document_id = ?');
             $stmt->bind_param('i', $documentId);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -171,15 +230,8 @@ class DocumentController {
             $document = $result->fetch_assoc();
             $stmt->close();
 
-            // Récupérer le doctor_id du médecin connecté
-            $stmt = $this->db->prepare('SELECT doctor_id FROM doctors WHERE user_id = ?');
-            $stmt->bind_param('i', $user['user_id']);
-            $stmt->execute();
-            $userDoctorId = $stmt->get_result()->fetch_assoc()['doctor_id'];
-            $stmt->close();
-
-            // Vérifier la propriété
-            if ($document['doctor_id'] != $userDoctorId) {
+            // Vérifier la propriété du document
+            if ($document['uploaded_by'] != $user['user_id']) {
                 Response::forbidden('Vous ne pouvez supprimer que vos propres documents');
             }
 

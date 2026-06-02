@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../models/ia_models.dart';
@@ -27,6 +28,8 @@ class _ConsultationScreenState extends State<ConsultationScreen>
   late TabController _tabController;
   late ApiService _apiService;
   bool _isSaving = false;
+  final List<Map<String, String>> _medicaments = [];
+  bool _createOrdonnance = true;
   final _motifController = TextEditingController();
   final _observationsController = TextEditingController();
   final _diagnosticController = TextEditingController();
@@ -66,7 +69,7 @@ class _ConsultationScreenState extends State<ConsultationScreen>
   void initState() {
     super.initState();
     _apiService = ApiService();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -174,7 +177,6 @@ class _ConsultationScreenState extends State<ConsultationScreen>
                 Tab(text: 'Motif'),
                 Tab(text: 'Examen'),
                 Tab(text: 'Diagnostic'),
-                Tab(text: 'Traitement'),
               ],
             ),
           ),
@@ -199,10 +201,7 @@ class _ConsultationScreenState extends State<ConsultationScreen>
                 ),
                 _DiagnosticTab(
                   diagnosticController: _diagnosticController,
-                  onNext: () => _tabController.animateTo(3),
-                ),
-                _TraitementTab(
-                  onFinish: () => _finishConsultation(),
+                  onNext: _finishConsultation,
                 ),
               ],
             ),
@@ -236,27 +235,40 @@ class _ConsultationScreenState extends State<ConsultationScreen>
       setState(() => _isSaving = true);
       await TokenHelper.ensureTokenReady();
 
+      final bodyToSend = {
+        'patient_id': widget.patientId,
+        'motif': _motifController.text,
+        'observations': _observationsController.text,
+        'diagnostic': _diagnosticController.text,
+        'tension_sys': _tensionSysController.text,
+        'tension_dia': _tensionDiaController.text,
+        'pouls': _poulsController.text,
+        'temperature': _temperatureController.text,
+        'poids': _poidsController.text,
+        'taille': _tailleController.text,
+        'date': DateTime.now().toIso8601String(),
+        'status': 'completed',
+      };
+      
+      print('📤 DEBUG - Données envoyées à l\'API: $bodyToSend');
+
       final response = await _apiService.post(
         '/consultations',
-        body: {
-          'patient_id': widget.patientId,
-          'motif': _motifController.text,
-          'observations': _observationsController.text,
-          'diagnostic': _diagnosticController.text,
-          'tension_sys': _tensionSysController.text,
-          'tension_dia': _tensionDiaController.text,
-          'pouls': _poulsController.text,
-          'temperature': _temperatureController.text,
-          'poids': _poidsController.text,
-          'taille': _tailleController.text,
-          'date': DateTime.now().toIso8601String(),
-          'status': 'completed',
-        },
+        body: bodyToSend,
       );
+
+      print('📥 DEBUG - Réponse API: ${response.toString()}');
 
       setState(() => _isSaving = false);
 
       if (response['success'] == true) {
+        // Si ordonnance créée, sauvegarder les médicaments
+        if (_createOrdonnance && _medicaments.isNotEmpty) {
+          final consultationId = response['data']?['consultation_id'];
+          if (consultationId != null) {
+            await _savePrescriptionToDatabase(consultationId);
+          }
+        }
         return; // Succès
       } else {
         throw Exception(response['message'] ?? 'Erreur lors de la sauvegarde');
@@ -272,6 +284,74 @@ class _ConsultationScreenState extends State<ConsultationScreen>
         );
       }
       rethrow;
+    }
+  }
+
+  /// Sauvegarder la prescription avec les médicaments
+  Future<void> _savePrescriptionToDatabase(int consultationId) async {
+    try {
+      if (_medicaments.isEmpty) {
+        print('⚠️ Aucun médicament à sauvegarder');
+        return;
+      }
+
+      print('💾 Sauvegarde de l\'ordonnance avec ${_medicaments.length} médicament(s)');
+
+      // Transformer les données pour correspondre au format attendu par l'API
+      final medications = _medicaments.map((med) {
+        final durationValue = med['duree']?.toString().trim() ?? '7';
+        return {
+          'medication_name': med['nom'] ?? '',
+          'dosage': med['dosage'] ?? '',
+          'dosage_unit': 'mg',
+          'frequency': med['posologie'] ?? '1x/jour',
+          'duration': durationValue,
+          'route_of_administration': 'oral',
+          'special_instructions': '',
+        };
+      }).toList();
+
+      final prescriptionData = {
+        'patient_id': widget.patientId,
+        'consultation_id': consultationId,
+        'medications': medications,
+        'notes': 'Ordonnance prescrite lors de la consultation',
+        'status': 'active',
+      };
+
+      print('📤 Ordonnance à envoyer: ${jsonEncode(prescriptionData)}');
+
+      final response = await _apiService.post(
+        '/prescriptions',
+        body: prescriptionData,
+      );
+
+      if (response['success'] == true) {
+        print('✅ Ordonnance sauvegardée avec succès: ${response['data']?['prescription_number']}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✓ Ordonnance sauvegardée avec succès'),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+      } else {
+        print('❌ Erreur API: ${response['message']}');
+        throw Exception(response['message'] ?? 'Erreur lors de la sauvegarde de l\'ordonnance');
+      }
+    } catch (e) {
+      print('❌ Erreur sauvegarde ordonnance: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur ordonnance: $e'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
   }
 
@@ -374,11 +454,35 @@ class _ConsultationScreenState extends State<ConsultationScreen>
 
 }
 
-class _MotifTab extends StatelessWidget {
+class _MotifTab extends StatefulWidget {
   final TextEditingController motifController;
   final VoidCallback onNext;
 
   const _MotifTab({required this.motifController, required this.onNext});
+
+  @override
+  State<_MotifTab> createState() => _MotifTabState();
+}
+
+class _MotifTabState extends State<_MotifTab> {
+  String? _selectedMotif;
+  
+  // Liste complète des motifs de consultation
+  final List<String> _motifsList = [
+    'Suivi médical',
+    'Douleur thoracique',
+    'Essoufflement',
+    'Palpitations',
+    'Contrôle tension',
+    'Renouvellement d\'ordonnance',
+    'Consultation préventive',
+    'Bilan de santé',
+    'Malaise',
+    'Fièvre',
+    'Toux',
+    'Allergie',
+    'Autre',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -387,60 +491,246 @@ class _MotifTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Section Motif avec Dropdown
           Text(
             'Motif de consultation',
-            style: Theme.of(context).textTheme.titleMedium,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          const SizedBox(height: 16),
-          // Motifs rapides
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              'Suivi',
-              'Douleur thoracique',
-              'Essoufflement',
-              'Palpitations',
-              'Contrôle tension',
-              'Renouvellement',
-            ]
-                .map((m) => _QuickChip(
-                      label: m,
-                      onTap: () => motifController.text = m,
-                    ))
-                .toList(),
+          const SizedBox(height: 12),
+          
+          // Dropdown Button pour motifs prédéfinis
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.divider, width: 1),
+              color: AppColors.surface,
+            ),
+            child: DropdownButton<String>(
+              value: _selectedMotif,
+              hint: const Text('Sélectionnez un motif...'),
+              isExpanded: true,
+              underline: const SizedBox(),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              items: _motifsList.map((String motif) {
+                return DropdownMenuItem<String>(
+                  value: motif,
+                  child: Text(motif),
+                );
+              }).toList(),
+              onChanged: (String? value) {
+                setState(() {
+                  _selectedMotif = value;
+                  if (value != null) {
+                    widget.motifController.text = value;
+                  }
+                });
+              },
+            ),
           ),
+          
           const SizedBox(height: 16),
+          
+          // Champ de description personnalisée
+          Text(
+            'Détails supplémentaires',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
           TextField(
-            controller: motifController,
+            controller: widget.motifController,
             maxLines: 4,
             decoration: InputDecoration(
-              hintText: 'Décrivez le motif de consultation...',
+              hintText: 'Décrivez le motif de consultation en détail...',
               filled: true,
               fillColor: AppColors.surfaceVariant,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
+              contentPadding: const EdgeInsets.all(16),
             ),
           ),
+          
           const SizedBox(height: 24),
+          
+          // Section Symptômes
           Text(
             'Symptômes signalés',
-            style: Theme.of(context).textTheme.titleMedium,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Sélectionnez les symptômes rapportés par le patient',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(height: 16),
-          _SymptomChecklist(),
+          _SymptomChecklistDropdown(),
+          
           const SizedBox(height: 24),
+          
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: onNext,
+              onPressed: widget.onNext,
               child: const Text('Continuer'),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SymptomChecklistDropdown extends StatefulWidget {
+  @override
+  State<_SymptomChecklistDropdown> createState() => _SymptomChecklistDropdownState();
+}
+
+class _SymptomChecklistDropdownState extends State<_SymptomChecklistDropdown> {
+  final List<String> _symptomsList = [
+    'Fièvre',
+    'Fatigue',
+    'Maux de tête',
+    'Nausées',
+    'Vertiges',
+    'Douleurs musculaires',
+    'Toux',
+    'Essoufflement',
+    'Douleur thoracique',
+    'Palpitations',
+    'Allergie',
+    'Éruption cutanée',
+  ];
+  
+  final Map<String, bool> _selectedSymptoms = {};
+  bool _showSymptomsList = false;
+
+  @override
+  void initState() {
+    super.initState();
+    for (var symptom in _symptomsList) {
+      _selectedSymptoms[symptom] = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedCount = _selectedSymptoms.values.where((v) => v).length;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Bouton pour afficher/masquer la liste déroulante
+        GestureDetector(
+          onTap: () => setState(() => _showSymptomsList = !_showSymptomsList),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.divider, width: 1),
+              color: AppColors.surface,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    selectedCount > 0
+                        ? '$selectedCount symptôme${selectedCount > 1 ? 's' : ''} sélectionné${selectedCount > 1 ? 's' : ''}'
+                        : 'Sélectionnez les symptômes...',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: selectedCount > 0 ? AppColors.textPrimary : AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+                Icon(
+                  _showSymptomsList ? Icons.expand_less : Icons.expand_more,
+                  color: AppColors.textSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        // Liste déroulante des symptômes
+        if (_showSymptomsList) ...[
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.divider, width: 1),
+              color: AppColors.surface,
+            ),
+            child: Column(
+              children: _symptomsList.map((symptom) {
+                return Column(
+                  children: [
+                    CheckboxListTile(
+                      value: _selectedSymptoms[symptom] ?? false,
+                      onChanged: (_) => setState(() => 
+                        _selectedSymptoms[symptom] = !(_selectedSymptoms[symptom] ?? false)
+                      ),
+                      title: Text(symptom),
+                      activeColor: AppColors.secondary,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      dense: true,
+                    ),
+                    if (symptom != _symptomsList.last)
+                      const Divider(height: 1, indent: 16, endIndent: 16),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+        
+        // Affichage des symptômes sélectionnés
+        if (selectedCount > 0) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.info.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppColors.info.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Symptômes sélectionnés:',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.info,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: _selectedSymptoms.entries
+                      .where((e) => e.value)
+                      .map((e) => Text(
+                        '✓ ${e.key}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ))
+                      .toList(),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -798,7 +1088,7 @@ class _DiagnosticTabState extends State<_DiagnosticTab> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: widget.onNext,
-              child: const Text('Continuer'),
+              child: const Text('Valider'),
             ),
           ),
         ],
@@ -861,18 +1151,23 @@ class _DiagnosticChip extends StatelessWidget {
 }
 
 class _TraitementTab extends StatefulWidget {
+  final List<Map<String, String>> medicaments;
+  final bool createOrdonnance;
+  final Function(bool) onCreateOrdonnanceChanged;
   final VoidCallback onFinish;
 
-  const _TraitementTab({required this.onFinish});
+  const _TraitementTab({
+    required this.medicaments,
+    required this.createOrdonnance,
+    required this.onCreateOrdonnanceChanged,
+    required this.onFinish,
+  });
 
   @override
   State<_TraitementTab> createState() => _TraitementTabState();
 }
 
 class _TraitementTabState extends State<_TraitementTab> {
-  final List<Map<String, String>> _medicaments = [];
-  bool _createOrdonnance = true;
-
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -891,8 +1186,8 @@ class _TraitementTabState extends State<_TraitementTab> {
                 children: [
                   const Text('Ordonnance', style: TextStyle(fontSize: 13)),
                   Switch(
-                    value: _createOrdonnance,
-                    onChanged: (v) => setState(() => _createOrdonnance = v),
+                    value: widget.createOrdonnance,
+                    onChanged: (v) => widget.onCreateOrdonnanceChanged(v),
                     activeColor: AppColors.secondary,
                   ),
                 ],
@@ -900,11 +1195,21 @@ class _TraitementTabState extends State<_TraitementTab> {
             ],
           ),
           const SizedBox(height: 16),
-          if (_createOrdonnance) ...[
+          if (widget.createOrdonnance) ...[
             // Liste des médicaments
-            if (_medicaments.isNotEmpty) ...[
-              ...List.generate(_medicaments.length, (index) {
-                final med = _medicaments[index];
+            if (widget.medicaments.isNotEmpty) ...[
+              ...List.generate(widget.medicaments.length, (index) {
+                final med = widget.medicaments[index];
+                final nom = med['nom']?.toString().trim() ?? '';
+                final dosage = med['dosage']?.toString().trim() ?? '';
+                final posologie = med['posologie']?.toString().trim() ?? '';
+                final duree = med['duree']?.toString().trim() ?? '';
+                
+                // Construire l'affichage complet
+                final dosageDisplay = dosage.isNotEmpty ? dosage : 'Dosage non spécifié';
+                final posologieDisplay = posologie.isNotEmpty ? posologie : 'Posologie non spécifiée';
+                final dureeDisplay = duree.isNotEmpty ? '$duree jour${int.tryParse(duree) != null && int.parse(duree) > 1 ? 's' : ''}' : 'Durée non spécifiée';
+                
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: AppCard(
@@ -914,21 +1219,37 @@ class _TraitementTabState extends State<_TraitementTab> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(med['nom'] ?? '', style: Theme.of(context).textTheme.titleSmall),
+                            Expanded(
+                              child: Text(
+                                nom.isNotEmpty ? nom : 'Médicament',
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                             IconButton(
-                              onPressed: () => setState(() => _medicaments.removeAt(index)),
+                              onPressed: () => setState(() => widget.medicaments.removeAt(index)),
                               icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 20),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 8),
                         Text(
-                          '${med['dosage']} • ${med['posologie']}',
+                          'Dosage: $dosageDisplay',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: AppColors.textSecondary,
                               ),
                         ),
+                        const SizedBox(height: 4),
                         Text(
-                          'Durée: ${med['duree']}',
+                          'Fréquence: $posologieDisplay',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Durée: $dureeDisplay',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: AppColors.textSecondary,
                               ),
@@ -1093,16 +1414,45 @@ class _TraitementTabState extends State<_TraitementTab> {
           ),
           ElevatedButton(
             onPressed: () {
-              if (nomController.text.isNotEmpty) {
-                setState(() {
-                  _medicaments.add({
-                    'nom': nomController.text,
-                    'dosage': dosageController.text,
-                    'posologie': posologieController.text,
-                    'duree': dureeController.text,
-                  });
-                });
+              final nom = nomController.text.trim();
+              final dosage = dosageController.text.trim();
+              final posologie = posologieController.text.trim();
+              final duree = dureeController.text.trim();
+              
+              // Validation : tous les champs obligatoires
+              if (nom.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('⚠️ Le nom du médicament est obligatoire')),
+                );
+                return;
               }
+              if (dosage.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('⚠️ Le dosage est obligatoire')),
+                );
+                return;
+              }
+              if (posologie.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('⚠️ La fréquence est obligatoire')),
+                );
+                return;
+              }
+              if (duree.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('⚠️ La durée est obligatoire')),
+                );
+                return;
+              }
+              
+              setState(() {
+                widget.medicaments.add({
+                  'nom': nom,
+                  'dosage': dosage,
+                  'posologie': posologie,
+                  'duree': duree,
+                });
+              });
               Navigator.pop(context);
             },
             child: const Text('Ajouter'),

@@ -1,0 +1,136 @@
+@startuml
+ class Utilisateur {
+        +int utilisateur_id <<PK>>
+        +String email <<UNIQUE>>
+        +String mot_de_passe_hash
+        +String nom_complet
+        +String telephone
+        +Enum role
+        +Boolean est_actif
+        +DateTime derniere_connexion
+        +DateTime cree_le
+        +DateTime mis_a_jour_le
+        --
+        +authentifier()
+        +deconnexion()
+        +reinitialiserMotDePasse()
+        +mettreAJourProfil()
+    }
+
+    class Patient {
+        +int patient_id <<PK>>
+        +int utilisateur_id <<FK>>
+        +String prenom
+        +String nom
+        +Date date_de_naissance
+        +Enum sexe
+        +String adresse
+        +String ville
+        +String code_postal
+        +Enum groupe_sanguin
+        +String numero_securite_sociale <<UNIQUE>>
+        +int parent_id <<FK>>
+        +Boolean est_enfant
+        +DateTime cree_le
+        +DateTime mis_a_jour_le
+        --
+        +demanderRendezVous()
+        +consulterDossierMedical()
+        +partagerDocumentMedical()
+    }
+
+    class Medecin {
+        +int medecin_id <<PK>>
+        +int utilisateur_id <<FK>>
+        +String prenom
+        +String nom
+        +String telephone
+        +String email
+        +String licence_medicale <<UNIQUE>>
+        +Date expiration_licence_medicale
+        +String specialite
+        +int hopital_id <<FK>>
+        +String biographie
+        +String photo_profil
+        +Decimal tarif_consultation
+        +Boolean est_disponible
+        +Decimal note_moyenne
+        +int total_consultations
+        +DateTime cree_le
+        +DateTime mis_a_jour_le
+        --
+        +programmerRendezVous()
+        +redigerOrdonnance()
+        +demanderExamen()
+        +mettreAJourDisponibilite()
+    }
+
+    class Infirmiere {
+        +int infirmiere_id <<PK>>
+        +int utilisateur_id <<FK>>
+        +String prenom
+        +String nom
+        +String telephone
+        +String email
+        +String licence_infirmiere <<UNIQUE>>
+        +String departement
+        +int hopital_id <<FK>>
+        +Boolean est_disponible
+        +String planning_service
+        +DateTime cree_le
+        +DateTime mis_a_jour_le
+        --
+        +enregistrerConstantes()
+        +notifierMedecin()
+        +mettreAJourPlanningService()
+    }
+
+    class Laboratoire {
+        +int laboratoire_id <<PK>>
+        +int utilisateur_id <<FK>>
+        +String nom
+        +String telephone
+        +String email
+        +String adresse
+        +String ville
+        +String code_postal
+        +String responsable
+        +String specialites_couvertes
+        +String heures_ouverture
+        +Boolean est_actif
+        +DateTime cree_le
+        +DateTime mis_a_jour_le
+        --
+        +recevoirDemandeExamen()
+        +publierResultatExamen()
+        +notifierPatient()
+        +validerExamen()
+    }
+
+    class Administrateur {
+        +int administrateur_id <<PK>>
+        +int utilisateur_id <<FK>>
+        +String prenom
+        +String nom
+        +String telephone
+        +String email
+        +String departement
+        +Enum niveau_acces
+        +DateTime cree_le
+        +DateTime mis_a_jour_le
+        --
+        +gererParametresSysteme()
+        +auditerJournauxAcces()
+        +gererComptes()
+        +accorderPermissions()
+    }
+
+    Utilisateur " 1 " <-- " 1 " Patient : peut-etre
+    Utilisateur " 1 " <-- " 1 " Medecin : peut-etre
+    Utilisateur " 1 " <-- " 1 " Infirmiere : peut-etre
+    Utilisateur " 1 " <-- " 1 " Laboratoire : peut-etre
+    Utilisateur " 1 " <-- " 1 " Administrateur : peut-etre
+    Patient " 0..1 " <-- " 0..* " Patient : parent_id (enfant/parent)
+}
+
+@enduml

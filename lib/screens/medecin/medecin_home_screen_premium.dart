@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../widgets/doctor_layout.dart';
 import 'medecin_home_screen.dart';
 import 'doctor_dashboard_premium.dart';
 import 'doctor_patients_screen_premium.dart';
 import 'doctor_agenda_premium.dart';
+import 'doctor_notifications_screen.dart';
 import 'doctor_profile_premium.dart';
 
 /// Écran principal médecin avec interface PREMIUM
 /// - Sidebar bleu nuit (#0F1A2E) avec navigation dorée
-/// - 4 pages : Dashboard, Patients, Agenda, Profil
+/// - 5 pages : Dashboard, Patients, Agenda, Notifications, Profil
 /// - Thème professionnel et graphes premium
 class MedecinHomeScreenPremium extends StatefulWidget {
   const MedecinHomeScreenPremium({super.key});
@@ -42,6 +44,7 @@ class _MedecinHomeScreenPremiumState extends State<MedecinHomeScreenPremium> {
         const DoctorDashboardPremium(),
         const DoctorPatientsScreenPremium(),
         const DoctorAgendaPremium(),
+        const DoctorNotificationsScreen(),
         const DoctorProfilePremium(),
       ],
     );

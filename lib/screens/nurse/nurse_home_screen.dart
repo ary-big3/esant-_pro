@@ -4,7 +4,9 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/gradient_background.dart';
 import '../../models/vitals_model.dart';
 import '../../services/vitals_service.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/common_widgets.dart';
+import '../auth/welcome_screen.dart';
 
 class NurseHomeScreen extends StatefulWidget {
   const NurseHomeScreen({Key? key}) : super(key: key);
@@ -264,7 +266,13 @@ class _NurseHomeScreenState extends State<NurseHomeScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.logout),
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                AuthService().logout();
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+                  (route) => false,
+                );
+              },
             ),
           ],
         ),

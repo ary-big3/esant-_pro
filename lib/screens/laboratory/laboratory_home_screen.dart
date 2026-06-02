@@ -4,7 +4,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/gradient_background.dart';
 import '../../widgets/common_widgets.dart';
 import 'laboratory_screen.dart';
-import '../auth/login_screen.dart';
+import '../auth/welcome_screen.dart';
+import '../../services/auth_service.dart';
 
 /// Écran d'accueil du Laboratoire
 /// Page principale avec navigation pour les responsables du laboratoire
@@ -259,8 +260,9 @@ class _LaboratorySettingsScreen extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () {
+                  AuthService().logout();
                   Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    MaterialPageRoute(builder: (context) => const WelcomeScreen()),
                     (route) => false,
                   );
                 },

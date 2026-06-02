@@ -4,7 +4,8 @@ import '../../core/theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/charts_widget.dart';
 import '../../models/ia_models.dart';
-import '../auth/login_screen.dart';
+import '../auth/welcome_screen.dart';
+import '../../services/auth_service.dart';
 
 class MinistereHomeScreen extends StatefulWidget {
   const MinistereHomeScreen({super.key});
@@ -1274,8 +1275,9 @@ class _MinistereSettingsScreen extends StatelessWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () {
+                  AuthService().logout();
                   Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    MaterialPageRoute(builder: (context) => const WelcomeScreen()),
                     (route) => false,
                   );
                 },

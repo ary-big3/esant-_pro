@@ -171,11 +171,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 children: [
                   // Logo
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFC9A84C), Color(0xFFE2D08E)],
-                      ),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
@@ -185,10 +182,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         ),
                       ],
                     ),
-                    child: const Icon(
-                      Icons.local_hospital,
-                      size: 36,
-                      color: Color(0xFF0F1A2E),
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/images/icone.ico',
+                        width: 64,
+                        height: 64,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => const Icon(
+                          Icons.local_hospital,
+                          size: 36,
+                          color: Color(0xFFC9A84C),
+                        ),
+                      ),
                     ),
                   ).animate().scale(duration: 500.ms, curve: Curves.easeOutBack).fadeIn(duration: 300.ms),
                   const SizedBox(height: 20),

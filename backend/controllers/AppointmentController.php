@@ -8,6 +8,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../middleware/AuthMiddleware.php';
 require_once __DIR__ . '/../utils/Response.php';
 require_once __DIR__ . '/../utils/Validator.php';
+require_once __DIR__ . '/../utils/EmailService.php';
 require_once __DIR__ . '/../config/constants.php';
 
 class AppointmentController {
@@ -154,6 +155,26 @@ class AppointmentController {
                     $doctor = $doctorResult->fetch_assoc();
                     $doctorName = $doctor['first_name'] . ' ' . $doctor['last_name'];
                     $this->createNotification($patientUserId, 'appointment_scheduled', 'Rendez-vous programmé', 'Un rendez-vous a été programmé avec Dr. ' . $doctorName, null, null, $appointmentId);
+                    
+                    // Envoyer un email au patient
+                    $emailService = new EmailService();
+                    $stmtPatientEmail = $this->db->prepare('SELECT first_name, last_name, email FROM patients WHERE patient_id = ?');
+                    $stmtPatientEmail->bind_param('i', $patientId);
+                    $stmtPatientEmail->execute();
+                    $patientEmailResult = $stmtPatientEmail->get_result();
+                    if ($patientEmailResult->num_rows > 0) {
+                        $patientData = $patientEmailResult->fetch_assoc();
+                        $appointmentTime = date('H:i', strtotime($appointmentDate));
+                        $emailService->sendAppointmentScheduledByDoctor(
+                            $patientData['email'] ?? '',
+                            $patientData['first_name'] . ' ' . $patientData['last_name'],
+                            $doctorName,
+                            'Consultation',
+                            $appointmentDate,
+                            $appointmentTime
+                        );
+                    }
+                    $stmtPatientEmail->close();
                 }
                 $stmt2->close();
             }
@@ -412,6 +433,8 @@ class AppointmentController {
             error_log('[createAppointmentRequest] Found ' . count($doctorIds) . ' doctors for speciality: ' . $specialityName);
 
             // Créer un appointment pour CHAQUE médecin avec cette spécialité
+            $emailService = new EmailService();
+            
             foreach ($doctorIds as $doctor) {
                 $doctorId = $doctor['doctor_id'];
                 
@@ -437,6 +460,17 @@ class AppointmentController {
                     $patientId, 
                     null, 
                     $appointmentId
+                );
+                
+                // Envoyer un email au médecin
+                $appointmentTime = date('H:i', strtotime($appointmentDate));
+                $emailService->sendAppointmentRequestToDoctor(
+                    $doctor['email'] ?? '',
+                    $doctor['first_name'] . ' ' . $doctor['last_name'],
+                    'Demande de rendez-vous',
+                    $specialityName,
+                    $appointmentDate,
+                    $appointmentTime
                 );
             }
 
@@ -509,12 +543,21 @@ class AppointmentController {
             $patientId = $appointment['patient_id'];
             $stmt->close();
 
+            // Vérifier que requestId existe
+            if (empty($requestId)) {
+                Response::badRequest('Cet appointment n\'a pas de demande associée');
+            }
+
             // Vérifier que la demande est toujours pending
             $stmt = $this->db->prepare('SELECT status FROM appointment_requests WHERE request_id = ?');
             $stmt->bind_param('i', $requestId);
             $stmt->execute();
             $result = $stmt->get_result();
-            if ($result->num_rows === 0 || $result->fetch_assoc()['status'] !== 'pending') {
+            if ($result->num_rows === 0) {
+                Response::badRequest('Demande de rendez-vous non trouvée');
+            }
+            $statusRow = $result->fetch_assoc();
+            if ($statusRow['status'] !== 'pending') {
                 Response::badRequest('Cette demande a déjà été acceptée ou annulée');
             }
             $stmt->close();
@@ -560,59 +603,49 @@ class AppointmentController {
                 $stmt2->execute();
                 $doctorResult = $stmt2->get_result();
                 if ($doctorResult->num_rows > 0) {
-                    $doctor = $doctorResult->fetch_assoc();
-                    $doctorName = $doctor['first_name'] . ' ' . $doctor['last_name'];
+                    $doctorInfo = $doctorResult->fetch_assoc();
+                    $doctorName = $doctorInfo['first_name'] . ' ' . $doctorInfo['last_name'];
                     $this->createNotification(
-                        $patientUser['user_id'], 
-                        'appointment_scheduled', 
-                        'Rendez-vous confirmé', 
-                        'Dr. ' . $doctorName . ' a accepté votre demande de rendez-vous', 
-                        null, 
-                        null, 
-                        $appointmentId
+                        $patientUser['user_id'],
+                        'appointment_confirmed',
+                        'Rendez-vous confirmé',
+                        "Votre rendez-vous avec le Dr. $doctorName a été confirmé."
                     );
                 }
                 $stmt2->close();
             }
             $stmtPatient->close();
 
-            Response::success(null, 'Rendez-vous confirmé avec succès');
-
+            Response::success('Rendez-vous approuvé avec succès', [
+                'appointment_id' => $appointmentId,
+                'status' => 'confirmed'
+            ]);
         } catch (Exception $e) {
-            error_log('Approve Appointment Request Error: ' . $e->getMessage());
-            Response::error('Erreur lors de l\'approbation: ' . $e->getMessage(), HTTP_SERVER_ERROR);
+            Response::error('Erreur lors de l\'approbation du rendez-vous: ' . $e->getMessage(), 500);
         }
     }
 
     /**
      * Créer une notification
      */
-    private function createNotification($userId, $type, $title, $message, $patientId = null, $examId = null, $appointmentId = null) {
+    private function createNotification($userId, $type, $title, $message, $patientId = null, $doctorId = null, $appointmentId = null) {
         try {
-            $createdAt = date('Y-m-d H:i:s');
-            // Convertir null en 0 pour les paramètres int
-            $patientId = $patientId ?? 0;
-            $examId = $examId ?? 0;
-            $appointmentId = $appointmentId ?? 0;
-            
-            error_log('[createNotification] Creating notification - userId: ' . $userId . ', type: ' . $type . ', appointmentId: ' . $appointmentId);
-            
             $stmt = $this->db->prepare(
-                'INSERT INTO notifications (user_id, notification_type, title, message, related_patient_id, related_exam_id, related_appointment_id, created_at)
+                'INSERT INTO notifications (user_id, notification_type, title, message, related_patient_id, related_appointment_id, created_at, is_read)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
             );
-            $stmt->bind_param('isssiiis', $userId, $type, $title, $message, $patientId, $examId, $appointmentId, $createdAt);
             
-            if (!$stmt->execute()) {
-                error_log('[createNotification] FAILED to insert notification: ' . $stmt->error);
-            } else {
-                error_log('[createNotification] SUCCESS - notification created with ID: ' . $this->db->insert_id);
-            }
+            $createdAt = date('Y-m-d H:i:s');
+            $isRead = 0;
             
+            $stmt->bind_param('issiissi', $userId, $type, $title, $message, $patientId, $appointmentId, $createdAt, $isRead);
+            $stmt->execute();
             $stmt->close();
+            
+            return $this->db->insert_id;
         } catch (Exception $e) {
             error_log('Create Notification Error: ' . $e->getMessage());
-            error_log('Notification params - userId: ' . $userId . ', type: ' . $type . ', title: ' . $title);
+            return null;
         }
     }
 }

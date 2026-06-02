@@ -909,7 +909,15 @@ Authorization: Bearer <token>
 
 ---
 
-### 5. Réactiver un Utilisateur
+### 5. Supprimer un Utilisateur
+```
+DELETE /admin/users/{userId}
+Authorization: Bearer <token>
+```
+
+---
+
+### 6. Réactiver un Utilisateur
 ```
 POST /admin/users/{userId}/activate
 Authorization: Bearer <token>

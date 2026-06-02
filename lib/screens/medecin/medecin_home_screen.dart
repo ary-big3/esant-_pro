@@ -7,13 +7,15 @@ import '../../widgets/common_widgets.dart';
 import '../../widgets/doctor_layout.dart';
 import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
+import '../../services/vitals_service.dart';
+import '../../models/vitals_model.dart';
 import '../../utils/token_helper.dart';
 import 'prescribe_exam_screen.dart';
 import 'prescribe_ordonnance_screen.dart';
 import 'consultation_screen.dart';
 import 'doctor_upload_document_screen.dart';
 import 'doctor_patient_medical_history_screen.dart';
-import '../auth/login_screen.dart';
+import '../auth/welcome_screen.dart';
 
 class MedecinHomeScreen extends StatefulWidget {
   const MedecinHomeScreen({super.key});
@@ -55,6 +57,13 @@ class _MedecinHomeScreenState extends State<MedecinHomeScreen> {
       onNavigate: (index) => setState(() => _currentIndex = index),
       doctorName: _doctorName,
       specialty: _specialty,
+      navigationItems: const [
+        (label: 'Tableau de bord', icon: Icons.dashboard_rounded, route: 'dashboard'),
+        (label: 'Patients', icon: Icons.people_rounded, route: 'patients'),
+        (label: 'Rendez-vous', icon: Icons.calendar_today_rounded, route: 'agenda'),
+        (label: 'Profil', icon: Icons.person_rounded, route: 'profile'),
+        (label: 'Paramètres', icon: Icons.settings_rounded, route: 'settings'),
+      ],
       pages: [
         _MedecinDashboard(),
         _MedecinPatientsScreen(),
@@ -554,7 +563,7 @@ class _MedecinSettingsScreenState extends State<_MedecinSettingsScreen> {
               boxShadow: [BoxShadow(color: const Color(0xFF0F1A2E).withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
             ),
             child: SwitchListTile(
-              title: const Text('Notifications', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF0F1A2E))),
+              title: const Text('Parametre', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF0F1A2E))),
               subtitle: Text('Recevoir les alertes de rendez-vous', style: TextStyle(color: const Color(0xFF64748B), fontSize: 12)),
               value: _notificationsEnabled,
               activeColor: const Color(0xFFC9A84C),
@@ -630,7 +639,7 @@ class _MedecinSettingsScreenState extends State<_MedecinSettingsScreen> {
               onPressed: () {
                 _authService.logout();
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  MaterialPageRoute(builder: (context) => const WelcomeScreen()),
                   (route) => false,
                 );
               },
@@ -765,12 +774,15 @@ class _PatientDetailScreenState extends State<_PatientDetailScreen> {
   List<Map<String, dynamic>> _exams = [];
   List<Map<String, dynamic>> _prescriptions = [];
   Map<String, dynamic> _medicalHistory = {};
+  VitalsModel? _latestVitals;
+  bool _isLoadingVitals = true;
 
   @override
   void initState() {
     super.initState();
     _apiService = ApiService();
     _loadPatientData();
+    _loadVitals();
   }
 
   Future<void> _loadPatientData() async {
@@ -973,6 +985,8 @@ class _PatientDetailScreenState extends State<_PatientDetailScreen> {
                             _buildInfoRow('Allergies', _patientData['allergies']?.toString() ?? 'Aucune'),
                             _buildInfoRow('Maladies chroniques', _patientData['chronic_diseases']?.toString() ?? 'Aucune'),
                           ]),
+                          const SizedBox(height: 20),
+                          _buildVitalsSummaryCard(),
                         ] else if (_selectedTab == 1) ...[
                           if (_consultations.isEmpty)
                             Center(
@@ -988,220 +1002,631 @@ class _PatientDetailScreenState extends State<_PatientDetailScreen> {
                               ),
                             )
                           else
-                            ListView.separated(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: _consultations.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 12),
-                              itemBuilder: (context, index) {
-                                final consultation = _consultations[index];
-                                return AppCard(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            consultation['date'] ?? 'Date inconnue',
-                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                              color: AppColors.textSecondary,
-                                            ),
-                                          ),
-                                          StatusBadge(
-                                            text: consultation['status'] ?? 'Complétée',
-                                            color: AppColors.success,
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        consultation['diagnostic'] ?? 'Consultation générale',
-                                        style: Theme.of(context).textTheme.titleSmall,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        consultation['notes'] ?? 'Pas de notes',
-                                        style: Theme.of(context).textTheme.bodySmall,
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
+
+                          ListView.separated(
+  shrinkWrap: true,
+  physics: const NeverScrollableScrollPhysics(),
+  itemCount: _consultations.length,
+  separatorBuilder: (_, __) =>
+      const SizedBox(height: 12),
+  itemBuilder: (context, index) {
+    final consultation =
+        _consultations[index];
+
+    String formattedDate =
+        'Date inconnue';
+
+    final dateField =
+        consultation[
+                'consultation_date'] ??
+            consultation['date'] ??
+            consultation[
+                'created_at'];
+
+    if (dateField != null &&
+        dateField
+          .toString()
+            .trim()
+            .isNotEmpty) {
+      try {
+        final d = DateTime.parse(
+          dateField.toString(),
+        );
+
+        formattedDate =
+            '${d.day.toString().padLeft(2, '0')}/'
+            '${d.month.toString().padLeft(2, '0')}/'
+            '${d.year}';
+      } catch (_) {}
+    }
+
+    return AppCard(
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    formattedDate,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(
+                          color: AppColors
+                              .textSecondary,
+                        ),
+                  ),
+                ),
+                StatusBadge(
+                  text:
+                      consultation['status']
+                              ?.toString() ??
+                          'Complétée',
+                  color:
+                      AppColors.success,
+                ),
+               
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            Text(
+              'Motif',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall,
+            ),
+
+            const SizedBox(height: 4),
+
+            Text(
+              consultation['motif']
+                      ?.toString() ??
+                  consultation['reason_for_visit']
+                      ?.toString() ??
+                  'aucun motif',
+              softWrap: true,
+            ),
+
+            const SizedBox(height: 12),
+
+            Text(
+              'Diagnostic',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall,
+            ),
+
+            const SizedBox(height: 4),
+
+            Text(
+              consultation['diagnosis']
+                      ?.toString() ??
+                  'aucun diagnostic',
+              softWrap: true,
+            ),
+
+            const SizedBox(height: 12),
+
+            Text(
+              'Note',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall,
+            ),
+
+            const SizedBox(height: 4),
+
+            Text(
+              consultation['notes']
+                      ?.toString() ??
+                  consultation['notes']
+                      ?.toString() ??
+                  'Aucune note',
+              softWrap: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  },
+),
+
+const SizedBox(height: 20),
+
+SizedBox(
+  width: double.infinity,
+  child: ElevatedButton.icon(
+    onPressed: () async {
+      final firstNameStr =
+          _patientData[
+                  'first_name'] ??
+              '?';
+
+      final lastNameStr =
+          _patientData[
+                  'last_name'] ??
+              '?';
+
+      await Navigator.of(context)
+          .push(
+        MaterialPageRoute(
+          builder: (context) =>
+              ConsultationScreen(
+            patientNom:
+                '$firstNameStr $lastNameStr',
+            patientAge: 'N/A',
+            patientId:
+                widget.patientId,
+          ),
+        ),
+      );
+
+      _loadConsultations();
+    },
+    icon: const Icon(Icons.add),
+    label: const Text(
+      'Nouvelle Consultation',
+    ),
+  ),
+),
+
+] else if (_selectedTab == 2) ...[
+  if (_prescriptions.isEmpty)
+    Center(
+      child: Padding(
+        padding:
+            const EdgeInsets.symmetric(
+          vertical: 32,
+        ),
+        child: Column(
+          children: [
+            const Icon(
+              Icons.receipt,
+              size: 48,
+              color:
+                  AppColors.textSecondary,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Aucune ordonnance',
+            ),
+          ],
+        ),
+      ),
+    )
+  else
+    ListView.separated(
+      shrinkWrap: true,
+      physics:
+          const NeverScrollableScrollPhysics(),
+      itemCount:
+          _prescriptions.length,
+      separatorBuilder: (_, __) =>
+          const SizedBox(height: 12),
+      itemBuilder:
+          (context, index) {
+        final prescription =
+            _prescriptions[index];
+
+        final medications =
+            prescription[
+                        'medications']
+                    is List
+                ? prescription[
+                        'medications']
+                    as List
+                : [];
+
+        String formattedDate =
+            'Date inconnue';
+
+        final dateField =
+            prescription[
+                    'prescription_date'] ??
+                prescription[
+                    'created_at'] ??
+                prescription[
+                    'issue_date'] ??
+                prescription['date'];
+
+        if (dateField != null &&
+            dateField
+                .toString()
+                .trim()
+                .isNotEmpty) {
+          try {
+            final d =
+                DateTime.parse(
+              dateField.toString(),
+            );
+
+            formattedDate =
+                '${d.day.toString().padLeft(2, '0')}/'
+                '${d.month.toString().padLeft(2, '0')}/'
+                '${d.year}';
+          } catch (_) {}
+        }
+
+        return AppCard(
+          child: SizedBox(
+            width:
+                double.infinity,
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        formattedDate,
+                        style: Theme.of(
+                                context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(
+                              color:
+                                  AppColors
+                                      .textSecondary,
                             ),
-                          const SizedBox(height: 20),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () async {
-                                final firstNameStr = _patientData['first_name'] ?? '?';
-                                final lastNameStr = _patientData['last_name'] ?? '?';
-                                await Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => ConsultationScreen(
-                                      patientNom: '$firstNameStr $lastNameStr',
-                                      patientAge: 'N/A',
-                                      patientId: widget.patientId,
-                                    ),
-                                  ),
-                                );
-                                _loadConsultations();
-                              },
-                              icon: const Icon(Icons.add),
-                              label: const Text('Nouvelle Consultation'),
-                            ),
+                      ),
+                    ),
+                    StatusBadge(
+                      text: prescription[
+                                  'status']
+                              ?.toString() ??
+                          'Active',
+                      color:
+                          AppColors
+                              .success,
+                    ),
+                   
+                  ],
+                ),
+
+                const SizedBox(
+                    height: 12),
+
+                Text(
+                  'Ordonnance #${index + 1}',
+                  style: Theme.of(
+                          context)
+                      .textTheme
+                      .titleSmall,
+                ),
+
+                const SizedBox(
+                    height: 12),
+
+                ...medications.map(
+                  (med) {
+                    final m = med
+                        as Map<
+                            String,
+                            dynamic>;
+
+                    return Container(
+                      width:
+                          double.infinity,
+                      margin:
+                          const EdgeInsets
+                              .only(
+                        bottom: 12,
+                      ),
+                      padding:
+                          const EdgeInsets
+                              .all(12),
+                      decoration:
+                          BoxDecoration(
+                        border:
+                            Border.all(
+                          color: Colors
+                              .grey
+                              .shade300,
+                        ),
+                        borderRadius:
+                            BorderRadius
+                                .circular(
+                          12,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment
+                                .start,
+                        children: [
+                          Text(
+                            '💊 Médicament',
+                            style:
+                                Theme.of(
+                                        context)
+                                    .textTheme
+                                    .titleSmall,
                           ),
-                        ] else if (_selectedTab == 2) ...[
-                          if (_prescriptions.isEmpty)
-                            Center(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 32),
-                                child: Column(
-                                  children: [
-                                    const Icon(Icons.receipt, size: 48, color: AppColors.textSecondary),
-                                    const SizedBox(height: 16),
-                                    const Text('Aucune ordonnance'),
-                                  ],
-                                ),
-                              ),
-                            )
-                          else
-                            ListView.separated(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: _prescriptions.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 12),
-                              itemBuilder: (context, index) {
-                                final prescription = _prescriptions[index];
-                                final medications = prescription['medications'] is List
-                                    ? (prescription['medications'] as List).map((m) => m is Map ? m['nom'] ?? m.toString() : m.toString()).toList()
-                                    : [];
-                                return AppCard(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            prescription['date'] ?? 'Date inconnue',
-                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                              color: AppColors.textSecondary,
-                                            ),
-                                          ),
-                                          StatusBadge(
-                                            text: prescription['status'] ?? 'Active',
-                                            color: AppColors.success,
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Ordonnance #${index + 1}',
-                                        style: Theme.of(context).textTheme.titleSmall,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      ...medications.map((med) => Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 4),
-                                        child: Text('• $med', style: Theme.of(context).textTheme.bodySmall),
-                                      )),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          const SizedBox(height: 20),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () async {
-                                final firstNameStr = _patientData['first_name'] ?? '?';
-                                final lastNameStr = _patientData['last_name'] ?? '?';
-                                await Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => PrescribeOrdonnanceScreen(
-                                      patientNom: lastNameStr,
-                                      patientPrenom: firstNameStr,
-                                      patientId: widget.patientId,
-                                      medecinNom: 'Dr. Médecin',
-                                    ),
-                                  ),
-                                );
-                                _loadPrescriptions();
-                              },
-                              icon: const Icon(Icons.add),
-                              label: const Text('Prescrire une Ordonnance'),
-                            ),
+
+                          Text(
+                            m['medication_name']
+                                    ?.toString() ??
+                                m['nom']
+                                    ?.toString() ??
+                                '',
                           ),
-                        ] else if (_selectedTab == 3) ...[
-                          if (_exams.isEmpty)
-                            Center(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 32),
-                                child: Column(
-                                  children: [
-                                    const Icon(Icons.science, size: 48, color: AppColors.textSecondary),
-                                    const SizedBox(height: 16),
-                                    const Text('Aucun examen'),
-                                  ],
-                                ),
-                              ),
-                            )
-                          else
-                            ListView.separated(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: _exams.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 12),
-                              itemBuilder: (context, index) {
-                                final exam = _exams[index];
-                                final exams = exam['exams'] is List ? (exam['exams'] as List).map((e) => e.toString()).toList() : [];
-                                return AppCard(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            exam['date'] ?? 'Date inconnue',
-                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                              color: AppColors.textSecondary,
-                                            ),
-                                          ),
-                                          StatusBadge(
-                                            text: exam['status'] ?? 'Pending',
-                                            color: AppColors.info,
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Demande d\'examen #${index + 1}',
-                                        style: Theme.of(context).textTheme.titleSmall,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Spécialité: ${exam['specialite'] ?? 'N/A'}',
-                                        style: Theme.of(context).textTheme.bodySmall,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Urgence: ${exam['urgence'] ?? 'normal'}',
-                                        style: Theme.of(context).textTheme.bodySmall,
-                                      ),
-                                      if (exams.isNotEmpty) ...[
-                                        const SizedBox(height: 8),
-                                        ...exams.map((e) => Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 4),
-                                          child: Text('• $e', style: Theme.of(context).textTheme.bodySmall),
-                                        )),
-                                      ],
-                                    ],
-                                  ),
-                                );
-                              },
+
+                          const SizedBox(
+                              height:
+                                  8),
+
+                          Text(
+                            'Dosage',
+                            style:
+                                Theme.of(
+                                        context)
+                                    .textTheme
+                                    .titleSmall,
+                          ),
+
+                          Text(
+                            '${m['dosage_mg'] ?? m['dosage'] ?? ''} mg',
+                          ),
+
+                          const SizedBox(
+                              height:
+                                  8),
+
+                          Text(
+                            'Fréquence',
+                            style:
+                                Theme.of(
+                                        context)
+                                    .textTheme
+                                    .titleSmall,
+                          ),
+
+                          Text(
+                            m['frequency']
+                                    ?.toString() ??
+                                m['frequence']
+                                    ?.toString() ??
+                                '',
+                          ),
+
+                          const SizedBox(
+                              height:
+                                  8),
+
+                          Text(
+                            'Durée',
+                            style:
+                                Theme.of(
+                                        context)
+                                    .textTheme
+                                    .titleSmall,
+                          ),
+
+                          Text(
+                            m['duration']
+                                    ?.toString() ??
+                                m['duree']
+                                    ?.toString() ??
+                                '',
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+
+const SizedBox(height: 20),
+
+SizedBox(
+  width: double.infinity,
+  child: ElevatedButton.icon(
+    onPressed: () async {
+      final firstNameStr =
+          _patientData[
+                  'first_name'] ??
+              '?';
+
+      final lastNameStr =
+          _patientData[
+                  'last_name'] ??
+              '?';
+
+      await Navigator.of(context)
+          .push(
+        MaterialPageRoute(
+          builder: (context) =>
+              PrescribeOrdonnanceScreen(
+            patientNom:
+                lastNameStr,
+            patientPrenom:
+                firstNameStr,
+            patientId:
+                widget.patientId,
+            medecinNom:
+                'Dr. Médecin',
+          ),
+        ),
+      );
+
+      _loadPrescriptions();
+    },
+    icon: const Icon(Icons.add),
+    label: const Text(
+      'Prescrire une Ordonnance',
+    ),
+  ),
+),
+
+] else if (_selectedTab == 3) ...[
+  if (_exams.isEmpty)
+    Center(
+      child: Padding(
+        padding:
+            const EdgeInsets.symmetric(
+          vertical: 32,
+        ),
+        child: Column(
+          children: [
+            const Icon(
+              Icons.science,
+              size: 48,
+              color:
+                  AppColors.textSecondary,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Aucun examen',
+            ),
+          ],
+        ),
+      ),
+    )
+  else
+    ListView.separated(
+      shrinkWrap: true,
+      physics:
+          const NeverScrollableScrollPhysics(),
+      itemCount: _exams.length,
+      separatorBuilder: (_, __) =>
+          const SizedBox(height: 12),
+      itemBuilder:
+          (context, index) {
+        final exam =
+            _exams[index];
+
+        final exams =
+            exam['exams']
+                    is List
+                ? exam['exams']
+                    as List
+                : [];
+
+        String formattedDate =
+            'Date inconnue';
+
+        final dateField =
+            exam['exam_date'] ??
+                exam['date'] ??
+                exam['created_at'];
+
+        if (dateField != null &&
+            dateField
+                .toString()
+                .trim()
+                .isNotEmpty) {
+          try {
+            final d =
+                DateTime.parse(
+              dateField.toString(),
+            );
+
+            formattedDate =
+                '${d.day.toString().padLeft(2, '0')}/'
+                '${d.month.toString().padLeft(2, '0')}/'
+                '${d.year}';
+          } catch (_) {}
+        }
+
+        return AppCard(
+          child: SizedBox(
+            width:
+                double.infinity,
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        formattedDate,
+                        style: Theme.of(
+                                context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(
+                              color:
+                                  AppColors
+                                      .textSecondary,
                             ),
+                      ),
+                    ),
+                    StatusBadge(
+                      text:
+                          exam['urgence']
+                                  ?.toString() ??
+                              'Normale',
+                      color:
+                          AppColors.info,
+                    ),
+                   
+                  ],
+                ),
+
+                const SizedBox(
+                    height: 12),
+
+                Text(
+                  'Examen N° ${exam['id'] ?? index + 1}',
+                  style: Theme.of(
+                          context)
+                      .textTheme
+                      .titleSmall,
+                ),
+
+                const SizedBox(
+                    height: 8),
+
+                Text(
+                  'Spécialité : ${exam['speciality_name'] ?? exam['specialite'] ?? ''}',
+                ),
+
+                const SizedBox(
+                    height: 8),
+
+                Text(
+                  'Urgence : ${exam['urgence'] ?? 'Normale'}',
+                ),
+
+                const SizedBox(
+                    height: 8),
+
+                if (exams
+                    .isNotEmpty)
+                  ...exams.map(
+                    (e) => Padding(
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
+                        vertical: 4,
+                      ),
+                      child: Text(
+                        '• ${e is Map ? e['name'] ?? '' : e.toString()}',
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+       
                           const SizedBox(height: 20),
                           SizedBox(
                             width: double.infinity,
@@ -1235,6 +1660,59 @@ class _PatientDetailScreenState extends State<_PatientDetailScreen> {
               ],
             ),
     );
+  }
+
+  void _editConsultation(Map<String, dynamic> consultation) async {
+    final firstNameStr = _patientData['first_name'] ?? '?';
+    final lastNameStr = _patientData['last_name'] ?? '?';
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ConsultationScreen(
+          patientNom: '$firstNameStr $lastNameStr',
+          patientAge: 'N/A',
+          patientId: widget.patientId,
+        ),
+      ),
+    );
+
+    _loadConsultations();
+  }
+
+  void _editPrescription(Map<String, dynamic> prescription) async {
+    final firstNameStr = _patientData['first_name'] ?? '?';
+    final lastNameStr = _patientData['last_name'] ?? '?';
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PrescribeOrdonnanceScreen(
+          patientNom: lastNameStr,
+          patientPrenom: firstNameStr,
+          patientId: widget.patientId,
+          medecinNom: 'Dr. Médecin',
+        ),
+      ),
+    );
+
+    _loadPrescriptions();
+  }
+
+  void _editExam(Map<String, dynamic> exam) async {
+    final firstNameStr = _patientData['first_name'] ?? '?';
+    final lastNameStr = _patientData['last_name'] ?? '?';
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PrescribeExamScreen(
+          patientId: widget.patientId,
+          patientNom: '$firstNameStr $lastNameStr',
+          medecinId: 'M001',
+          medecinNom: 'Dr. Médecin',
+        ),
+      ),
+    );
+
+    _loadExams();
   }
 
   Widget _buildTabButton(String label, int tabIndex) {
@@ -1386,6 +1864,67 @@ class _PatientDetailScreenState extends State<_PatientDetailScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _loadVitals() async {
+    try {
+      await TokenHelper.ensureTokenReady();
+      final vitals = await VitalsService.getLatestVitals(widget.patientId);
+      if (mounted) {
+        setState(() {
+          _latestVitals = vitals;
+          _isLoadingVitals = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement constantes vitales: $e');
+      if (mounted) {
+        setState(() => _isLoadingVitals = false);
+      }
+    }
+  }
+
+  Widget _buildVitalsSummaryCard() {
+    if (_isLoadingVitals) {
+      return AppCard(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+              const SizedBox(width: 12),
+              Text(
+                'Chargement des constantes…',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_latestVitals == null) {
+      return _buildInfoCard('Constantes Vitales', [
+        _buildInfoRow('Aucune constante enregistrée', ''),
+      ]);
+    }
+
+    final vitals = _latestVitals!;
+    final recordedAt = vitals.recordedAt;
+    final recordedDate = '${recordedAt.day.toString().padLeft(2, '0')}/'
+        '${recordedAt.month.toString().padLeft(2, '0')}/'
+        '${recordedAt.year} ${recordedAt.hour.toString().padLeft(2, '0')}:${recordedAt.minute.toString().padLeft(2, '0')}';
+
+    return _buildInfoCard('Constantes Vitales', [
+      _buildInfoRow('Mesure', recordedDate),
+      _buildInfoRow('Température', '${vitals.temperature.toStringAsFixed(1)} °C'),
+      _buildInfoRow('Tension artérielle', '${vitals.tensionSystolique}/${vitals.tensionDiastolique} mmHg'),
+      _buildInfoRow('Pouls', '${vitals.frequenceCardiaque} bpm'),
+      _buildInfoRow('Saturation O₂', '${vitals.saturOxygene.toStringAsFixed(1)} %'),
+      if (vitals.poids != null) _buildInfoRow('Poids', '${vitals.poids?.toStringAsFixed(1)} kg'),
+      if (vitals.taille != null) _buildInfoRow('Taille', '${vitals.taille?.toStringAsFixed(0)} cm'),
+    ]);
   }
 }
 
@@ -1805,7 +2344,6 @@ class _MedecinAgendaScreenState extends State<_MedecinAgendaScreen> {
       final response = await _apiService.put(
         '/appointments/$appointmentId/approve',
         body: {},
-        requireAuth: true,
       );
 
       if (response['success'] == true && mounted) {
@@ -2885,7 +3423,7 @@ class _MedecinProfileScreenState extends State<_MedecinProfileScreen> {
                   await authService.logout();
                   if (context.mounted) {
                     Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      MaterialPageRoute(builder: (context) => const WelcomeScreen()),
                       (route) => false,
                     );
                   }

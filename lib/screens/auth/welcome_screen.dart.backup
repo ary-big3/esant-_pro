@@ -1,0 +1,1582 @@
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'login_screen.dart';
+import 'register_screen.dart';
+
+// ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
+class _C {
+  
+// ─── NAVIGATION HELPER ─────────────────────────────────────────────────────────
+void _push(BuildContext context, Widget page) {
+  Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+}
+
+// ─── WELCOME SCREEN ───────────────────────────────────────────────────────────
+class WelcomeScreen extends StatefulWidget {
+  const WelcomeScreen({Key? key}) : super(key: key);
+
+  @override
+  State<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+class _WelcomeScreenState extends State<WelcomeScreen> {
+  late ScrollController _scrollController;
+  bool _showMobileMenu = false;
+  bool _scrolled = false;
+
+  // GlobalKeys for sections
+  final GlobalKey _keyHero = GlobalKey();
+  final GlobalKey _keyServices = GlobalKey();
+  final GlobalKey _keyStats = GlobalKey();
+  final GlobalKey _keyAbout = GlobalKey();
+  final GlobalKey _keyDoctors = GlobalKey();
+  final GlobalKey _keyHow = GlobalKey();
+  final GlobalKey _keyBenefits = GlobalKey();
+  final GlobalKey _keyFaq = GlobalKey();
+  final GlobalKey _keyContact = GlobalKey();
+  final GlobalKey _keyCta = GlobalKey();
+  final GlobalKey _keyFooter = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    setState(() => _scrolled = _scrollController.offset > 50);
+  }
+
+  void _scrollToSection(GlobalKey key) {
+    setState(() => _showMobileMenu = false);
+    final context = key.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 900),
+        curve: Curves.easeInOutCubic,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return Scaffold(
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            controller: _scrollController,
+            child: Column(
+              children: [
+                _HeroSection(key: _keyHero),
+                _ServicesSection(key: _keyServices),
+                _StatsSection(key: _keyStats),
+                _AboutSection(key: _keyAbout),
+                _DoctorsSection(key: _keyDoctors),
+                _HowItWorksSection(key: _keyHow),
+                _BenefitsSection(key: _keyBenefits),
+                _FaqSection(key: _keyFaq),
+                _ContactSection(key: _keyContact),
+                _CtaFinalSection(key: _keyCta),
+                _PremiumFooter(key: _keyFooter),
+              ],
+            ),
+          ),
+          _StickyNavbar(
+            scrolled: _scrolled,
+            onMenuToggle: () => setState(() => _showMobileMenu = !_showMobileMenu),
+            onScroll: _scrollToSection,
+          ),
+          if (_showMobileMenu)
+            _MobileMenuOverlay(
+              onScroll: _scrollToSection,
+              onClose: () => setState(() => _showMobileMenu = false),
+            ),
+          if (isMobile && MediaQuery.of(context).padding.bottom == 0)
+            Positioned(
+              bottom: 20,
+              left: 20,
+              right: 20,
+              child: _FloatingCTAButton(),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── STICKY NAVBAR ────────────────────────────────────────────────────────────
+class _StickyNavbar extends StatelessWidget {
+  final bool scrolled;
+  final VoidCallback onMenuToggle;
+  final Function(GlobalKey) onScroll;
+
+  const _StickyNavbar({
+    required this.scrolled,
+    required this.onMenuToggle,
+    required this.onScroll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _C.white,
+        boxShadow: scrolled
+            ? [BoxShadow(color: _C.navy.withValues(alpha: 0.1), blurRadius: 12, offset: const Offset(0, 4))]
+            : [],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 20 : 72, vertical: 16),
+          child: Row(
+            children: [
+              // Logo
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [_C.gold, _C.goldDeep],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: const Icon(Icons.medical_services, color: _C.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text('E-Santé',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: _C.navy),
+              ),
+              const Spacer(),
+              if (!isMobile) ...[
+                _NavLink(label: 'Accueil', onTap: () {}),
+                _NavLink(label: 'Services', onTap: () {}),
+                _NavLink(label: 'À propos', onTap: () {}),
+                _NavLink(label: 'Médecins', onTap: () {}),
+                _NavLink(label: 'FAQ', onTap: () {}),
+                _NavLink(label: 'Contact', onTap: () {}),
+                const SizedBox(width: 24),
+                OutlinedButton(
+                  onPressed: () => _push(context, const LoginScreen()),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: _C.gold, width: 1.5),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Connexion', style: TextStyle(color: _C.gold, fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 12),
+                FilledButton(
+                  onPressed: () => _push(context, const RegisterScreen()),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _C.gold,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text("S'inscrire", style: TextStyle(color: _C.navy, fontWeight: FontWeight.w600)),
+                ),
+              ] else
+                IconButton(
+                  icon: const Icon(Icons.menu, color: _C.navy, size: 28),
+                  onPressed: onMenuToggle,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavLink extends StatefulWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _NavLink({required this.label, required this.onTap});
+
+  @override
+  State<_NavLink> createState() => _NavLinkState();
+}
+
+class _NavLinkState extends State<_NavLink> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Text(widget.label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: _hovered ? _C.gold : _C.navy,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+            if (_hovered)
+              Container(
+                width: 24, height: 2,
+                decoration: BoxDecoration(
+                  color: _C.gold,
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── MOBILE MENU OVERLAY ──────────────────────────────────────────────────────
+class _MobileMenuOverlay extends StatelessWidget {
+  final Function(GlobalKey) onScroll;
+  final VoidCallback onClose;
+
+  const _MobileMenuOverlay({required this.onScroll, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: GestureDetector(
+        onTap: onClose,
+        child: Container(
+          color: _C.navy.withValues(alpha: 0.4),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () {},
+                child: Container(
+                  width: 260,
+                  color: _C.white,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(24, 100, 24, 24),
+                    children: [
+                      _MobileMenuItem(label: 'Accueil', onTap: onClose),
+                      _MobileMenuItem(label: 'Services', onTap: onClose),
+                      _MobileMenuItem(label: 'À propos', onTap: onClose),
+                      _MobileMenuItem(label: 'Médecins', onTap: onClose),
+                      _MobileMenuItem(label: 'Comment ça marche', onTap: onClose),
+                      _MobileMenuItem(label: 'FAQ', onTap: onClose),
+                      _MobileMenuItem(label: 'Contact', onTap: onClose),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () {
+                            onClose();
+                            _push(context, const LoginScreen());
+                          },
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: _C.gold),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('Connexion', style: TextStyle(color: _C.gold, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () {
+                            onClose();
+                            _push(context, const RegisterScreen());
+                          },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _C.gold,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text("S'inscrire", style: TextStyle(color: _C.navy, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(child: GestureDetector(onTap: onClose, child: const SizedBox.expand())),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileMenuItem extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _MobileMenuItem({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _C.navy)),
+      ),
+    );
+  }
+}
+
+// ─── HERO SECTION ─────────────────────────────────────────────────────────────
+class _HeroSection extends StatelessWidget {
+  const _HeroSection({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    return Container(
+      height: screenHeight * 0.85,
+      decoration: BoxDecoration(
+        image: const DecorationImage(
+          image: AssetImage('assets/images/cli.png'),
+          fit: BoxFit.cover,
+        ),
+        color: _C.navy,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [_C.navy.withValues(alpha: 0.5), _C.navyMid.withValues(alpha: 0.3)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [_C.gold.withValues(alpha: 0.08), Colors.transparent],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 24 : 72,
+              vertical: isMobile ? 60 : 120,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Main headline
+                Text(
+                  'La santé digitale',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: isMobile ? 32 : 64,
+                    fontWeight: FontWeight.w800,
+                    color: _C.white,
+                    height: 1.2,
+                  ),
+                ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.04),
+                Text(
+                  'réinventée',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: isMobile ? 32 : 64,
+                    fontWeight: FontWeight.w800,
+                    color: _C.gold,
+                    height: 1.2,
+                  ),
+                ).animate().fadeIn(duration: 500.ms, delay: 100.ms).slideY(begin: 0.04),
+                const SizedBox(height: 20),
+                Text(
+                  'Connectez-vous avec les meilleurs médecins et gérez votre santé en toute simplicité',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: isMobile ? 16 : 20,
+                    color: _C.white.withValues(alpha: 0.9),
+                    height: 1.6,
+                  ),
+                ).animate().fadeIn(duration: 600.ms, delay: 200.ms),
+                const SizedBox(height: 40),
+                // CTA Buttons
+                if (isMobile)
+                  Column(
+                    children: [
+                      FilledButton(
+                        onPressed: () => _push(context, const RegisterScreen()),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _C.gold,
+                          padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text('Commencer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _C.navy)),
+                      ).animate().fadeIn(duration: 600.ms, delay: 300.ms),
+                      const SizedBox(height: 16),
+                      OutlinedButton(
+                        onPressed: () => _push(context, const LoginScreen()),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: _C.gold, width: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text('Me connecter', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _C.gold)),
+                      ).animate().fadeIn(duration: 600.ms, delay: 400.ms),
+                    ],
+                  )
+                else
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      FilledButton(
+                        onPressed: () => _push(context, const RegisterScreen()),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _C.gold,
+                          padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text('Commencer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _C.navy)),
+                      ).animate().fadeIn(duration: 600.ms, delay: 300.ms),
+                      const SizedBox(width: 24),
+                      OutlinedButton(
+                        onPressed: () => _push(context, const LoginScreen()),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: _C.gold, width: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text('Me connecter', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _C.gold)),
+                      ).animate().fadeIn(duration: 600.ms, delay: 400.ms),
+                    ],
+                  ),
+                const SizedBox(height: 60),
+                // Stats row
+                if (isMobile)
+                  Column(
+                    children: [
+                      _HeroStat(value: '150K+', label: 'Patients'),
+                      const SizedBox(height: 24),
+                      _HeroStat(value: '500+', label: 'Spécialistes'),
+                      const SizedBox(height: 24),
+                      _HeroStat(value: '24h/24', label: 'Disponible'),
+                      const SizedBox(height: 24),
+                      _HeroStat(value: '4.9★', label: 'Note moyenne'),
+                    ],
+                  )
+                else
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _HeroStat(value: '150K+', label: 'Patients'),
+                      _HeroStat(value: '500+', label: 'Spécialistes'),
+                      _HeroStat(value: '24h/24', label: 'Disponible'),
+                      _HeroStat(value: '4.9★', label: 'Note moyenne'),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroStat extends StatelessWidget {
+  final String value;
+  final String label;
+  const _HeroStat({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(value, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: _C.gold))
+            .animate().scaleXY(begin: 0.8, duration: 600.ms, delay: 200.ms),
+        const SizedBox(height: 8),
+        Text(label, style: const TextStyle(fontSize: 14, color: _C.white, fontWeight: FontWeight.w500))
+            .animate().fadeIn(duration: 600.ms, delay: 300.ms),
+      ],
+    );
+  }
+}
+
+// ─── SERVICES SECTION ─────────────────────────────────────────────────────────
+class _ServicesSection extends StatelessWidget {
+  const _ServicesSection({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return Container(
+      color: _C.white,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 24 : 72,
+        vertical: isMobile ? 60 : 120,
+      ),
+      child: Column(
+        children: [
+          // Section header
+          Text('Nos Services',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isMobile ? 32 : 48,
+              fontWeight: FontWeight.w800,
+              color: _C.navy,
+            ),
+          ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.04),
+          const SizedBox(height: 12),
+          Text('Explorez notre gamme complète de services médicaux',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: isMobile ? 14 : 16, color: _C.stone, height: 1.6),
+          ).animate().fadeIn(duration: 600.ms, delay: 100.ms),
+          const SizedBox(height: 60),
+          // Services grid
+          GridView.count(
+            crossAxisCount: isMobile ? 1 : 3,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 32,
+            crossAxisSpacing: 32,
+            childAspectRatio: isMobile ? 1.0 : 1.15,
+            children: [
+              _ServiceCard(icon: Icons.video_call, title: 'Consultations Vidéo', description: 'Parlez avec un médecin en temps réel', delay: 0),
+              _ServiceCard(icon: Icons.medication_liquid, title: 'Ordonnances', description: 'Recevez vos ordonnances digitales', delay: 100),
+              _ServiceCard(icon: Icons.health_and_safety, title: 'Dossiers Médicaux', description: 'Tous vos documents en un seul endroit', delay: 200),
+              _ServiceCard(icon: Icons.favorite, title: 'Suivi Vital', description: 'Suivez votre santé en continu', delay: 300),
+              _ServiceCard(icon: Icons.calendar_today, title: 'Prise de RDV', description: 'Réservez facilement vos consultations', delay: 400),
+              _ServiceCard(icon: Icons.chat, title: 'Support 24/7', description: 'Une aide toujours disponible', delay: 500),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ServiceCard extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final int delay;
+
+  const _ServiceCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.delay,
+  });
+
+  @override
+  State<_ServiceCard> createState() => _ServiceCardState();
+}
+
+class _ServiceCardState extends State<_ServiceCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          color: _C.white,
+          border: Border.all(color: _hovered ? _C.gold : _C.border, width: 1.5),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: _hovered
+              ? [BoxShadow(color: _C.gold.withValues(alpha: 0.15), blurRadius: 24, offset: const Offset(0, 8))]
+              : [BoxShadow(color: _C.navy.withValues(alpha: 0.05), blurRadius: 12)],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: _C.gold.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(widget.icon, color: _C.gold, size: 20),
+            ),
+            const SizedBox(height: 20),
+            Text(widget.title,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _C.navy),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: Text(widget.description,
+                style: const TextStyle(fontSize: 13, color: _C.stone, height: 1.6),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: 500.ms, delay: Duration(milliseconds: widget.delay)).slideY(begin: 0.04);
+  }
+}
+
+// ─── STATS SECTION ────────────────────────────────────────────────────────────
+class _StatsSection extends StatelessWidget {
+  const _StatsSection({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return Container(
+      color: _C.navy,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 24 : 72,
+        vertical: isMobile ? 60 : 120,
+      ),
+      child: Column(
+        children: [
+          GridView.count(
+            crossAxisCount: isMobile ? 2 : 4,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 40,
+            crossAxisSpacing: isMobile ? 20 : 40,
+            childAspectRatio: isMobile ? 1.2 : 1.0,
+            children: [
+              _StatCard(value: '150K+', label: 'Patients actifs', delay: 0),
+              _StatCard(value: '500+', label: 'Médecins vérifiés', delay: 100),
+              _StatCard(value: '99.9%', label: 'Disponibilité', delay: 200),
+              _StatCard(value: '4.9★', label: 'Note moyenne', delay: 300),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String value;
+  final String label;
+  final int delay;
+
+  const _StatCard({required this.value, required this.label, required this.delay});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(value,
+          style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w800, color: _C.gold),
+        ).animate().scaleXY(begin: 0.8, duration: 600.ms, delay: Duration(milliseconds: delay)),
+        const SizedBox(height: 12),
+        Text(label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 14, color: _C.white, fontWeight: FontWeight.w500),
+        ).animate().fadeIn(duration: 600.ms, delay: Duration(milliseconds: delay + 100)),
+      ],
+    );
+  }
+}
+
+// ─── ABOUT SECTION ───────────────────────────────────────────────────────────
+class _AboutSection extends StatelessWidget {
+  const _AboutSection({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return Container(
+      color: _C.pearl,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 24 : 72,
+        vertical: isMobile ? 60 : 120,
+      ),
+      child: Column(
+        children: [
+          Text('À Propos d\'E-Santé',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isMobile ? 32 : 48,
+              fontWeight: FontWeight.w800,
+              color: _C.navy,
+            ),
+          ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.04),
+          const SizedBox(height: 60),
+          if (isMobile)
+            Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.asset('assets/images/doc.png', height: 300, fit: BoxFit.cover),
+                ).animate().fadeIn(duration: 600.ms, delay: 100.ms),
+                const SizedBox(height: 40),
+                Text(
+                  'E-Santé révolutionne l\'accès aux soins en connectant les patients avec les meilleurs médecins, simplement et rapidement.',
+                  style: TextStyle(fontSize: 16, color: _C.charcoal, height: 1.8, fontWeight: FontWeight.w500),
+                ).animate().fadeIn(duration: 600.ms, delay: 200.ms),
+                const SizedBox(height: 32),
+                Column(
+                  children: [
+                    _CertBadge(label: 'Certifié ISO 27001'),
+                    const SizedBox(height: 16),
+                    _CertBadge(label: 'Approuvé Santé'),
+                    const SizedBox(height: 16),
+                    _CertBadge(label: 'Sécurité 256-bit'),
+                  ],
+                ),
+              ],
+            )
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  flex: 1,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset('assets/images/doc.png', fit: BoxFit.cover),
+                  ).animate().fadeIn(duration: 600.ms, delay: 100.ms),
+                ),
+                const SizedBox(width: 60),
+                Expanded(
+                  flex: 1,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'E-Santé révolutionne l\'accès aux soins en connectant les patients avec les meilleurs médecins, simplement et rapidement.',
+                        style: TextStyle(fontSize: 18, color: _C.charcoal, height: 1.8, fontWeight: FontWeight.w500),
+                      ).animate().fadeIn(duration: 600.ms, delay: 200.ms),
+                      const SizedBox(height: 32),
+                      Row(
+                        children: [
+                          _CertBadge(label: 'Certifié ISO 27001'),
+                          const SizedBox(width: 16),
+                          _CertBadge(label: 'Approuvé Santé'),
+                          const SizedBox(width: 16),
+                          _CertBadge(label: 'Sécurité 256-bit'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CertBadge extends StatelessWidget {
+  final String label;
+  const _CertBadge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 64, height: 64,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(colors: [_C.gold, _C.goldDeep]),
+      ),
+      child: Center(
+        child: Text('✓', style: TextStyle(fontSize: 28, color: _C.white, fontWeight: FontWeight.w800)),
+      ),
+    );
+  }
+}
+
+// ─── DOCTORS SECTION ──────────────────────────────────────────────────────────
+class _DoctorsSection extends StatelessWidget {
+  const _DoctorsSection({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return Container(
+      color: _C.white,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 24 : 72,
+        vertical: isMobile ? 60 : 120,
+      ),
+      child: Column(
+        children: [
+          Text('Nos Médecins Spécialistes',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isMobile ? 32 : 48,
+              fontWeight: FontWeight.w800,
+              color: _C.navy,
+            ),
+          ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.04),
+          const SizedBox(height: 12),
+          Text('Les meilleurs professionnels de santé à votre service',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: isMobile ? 14 : 16, color: _C.stone),
+          ).animate().fadeIn(duration: 600.ms, delay: 100.ms),
+          const SizedBox(height: 60),
+          GridView.count(
+            crossAxisCount: isMobile ? 1 : 3,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 32,
+            crossAxisSpacing: 32,
+            childAspectRatio: isMobile ? 1.0 : 0.9,
+            children: [
+              _DoctorCard(name: 'Dr. Ahmed Médina', specialty: 'Cardiologue', experience: '15 ans', rating: 4.9, delay: 0),
+              _DoctorCard(name: 'Dr. Marie Dupont', specialty: 'Dermatologue', experience: '12 ans', rating: 4.8, delay: 100),
+              _DoctorCard(name: 'Dr. Jean Claude', specialty: 'Neurologue', experience: '18 ans', rating: 4.9, delay: 200),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DoctorCard extends StatefulWidget {
+  final String name;
+  final String specialty;
+  final String experience;
+  final double rating;
+  final int delay;
+
+  const _DoctorCard({
+    required this.name,
+    required this.specialty,
+    required this.experience,
+    required this.rating,
+    required this.delay,
+  });
+
+  @override
+  State<_DoctorCard> createState() => _DoctorCardState();
+}
+
+class _DoctorCardState extends State<_DoctorCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        decoration: BoxDecoration(
+          color: _hovered ? _C.navy : _C.white,
+          border: Border.all(color: _hovered ? _C.gold : _C.border, width: 1.5),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: _hovered
+              ? [BoxShadow(color: _C.navy.withValues(alpha: 0.25), blurRadius: 24, offset: const Offset(0, 12))]
+              : [BoxShadow(color: _C.navy.withValues(alpha: 0.05), blurRadius: 12)],
+        ),
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          children: [
+            Container(
+              width: 80, height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _hovered ? _C.gold.withValues(alpha: 0.2) : _C.gold.withValues(alpha: 0.1),
+              ),
+              child: Icon(Icons.person, color: _hovered ? _C.gold : _C.navy, size: 40),
+            ),
+            const SizedBox(height: 20),
+            Text(widget.name,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: _hovered ? _C.gold : _C.navy,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(widget.specialty,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _hovered ? _C.white : _C.stone,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.star, color: _C.gold, size: 16),
+                const SizedBox(width: 6),
+                Text('${widget.rating}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _hovered ? _C.gold : _C.navy,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Divider(color: _hovered ? _C.gold.withValues(alpha: 0.3) : _C.border),
+            const SizedBox(height: 16),
+            Text('${widget.experience} d\'expérience',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: _hovered ? _C.white : _C.stone,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: 600.ms, delay: Duration(milliseconds: widget.delay)).slideY(begin: 0.04);
+  }
+}
+
+// ─── HOW IT WORKS SECTION ─────────────────────────────────────────────────────
+class _HowItWorksSection extends StatelessWidget {
+  const _HowItWorksSection({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return Container(
+      color: _C.pearl,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 24 : 72,
+        vertical: isMobile ? 60 : 120,
+      ),
+      child: Column(
+        children: [
+          Text('Comment ça Marche',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isMobile ? 32 : 48,
+              fontWeight: FontWeight.w800,
+              color: _C.navy,
+            ),
+          ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.04),
+          const SizedBox(height: 60),
+          if (isMobile)
+            Column(
+              children: [
+                _ProcessStep(number: '1', title: 'Créer un compte', description: 'Inscrivez-vous en 2 minutes', delay: 0),
+                const SizedBox(height: 32),
+                _ProcessStep(number: '2', title: 'Trouver un médecin', description: 'Consultez nos spécialistes', delay: 100),
+                const SizedBox(height: 32),
+                _ProcessStep(number: '3', title: 'Prendre RDV', description: 'Réservez votre consultation', delay: 200),
+                const SizedBox(height: 32),
+                _ProcessStep(number: '4', title: 'Consulter', description: 'Videocall sécurisée et simple', delay: 300),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(child: _ProcessStep(number: '1', title: 'Créer un compte', description: 'Inscrivez-vous en 2 minutes', delay: 0)),
+                const SizedBox(width: 20),
+                Container(width: 2, height: 100, color: _C.gold),
+                const SizedBox(width: 20),
+                Expanded(child: _ProcessStep(number: '2', title: 'Trouver un médecin', description: 'Consultez nos spécialistes', delay: 100)),
+                const SizedBox(width: 20),
+                Container(width: 2, height: 100, color: _C.gold),
+                const SizedBox(width: 20),
+                Expanded(child: _ProcessStep(number: '3', title: 'Prendre RDV', description: 'Réservez votre consultation', delay: 200)),
+                const SizedBox(width: 20),
+                Container(width: 2, height: 100, color: _C.gold),
+                const SizedBox(width: 20),
+                Expanded(child: _ProcessStep(number: '4', title: 'Consulter', description: 'Videocall sécurisée et simple', delay: 300)),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProcessStep extends StatelessWidget {
+  final String number;
+  final String title;
+  final String description;
+  final int delay;
+
+  const _ProcessStep({
+    required this.number,
+    required this.title,
+    required this.description,
+    required this.delay,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: 60, height: 60,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(colors: [_C.gold, _C.goldDeep]),
+          ),
+          child: Center(
+            child: Text(number,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _C.white),
+            ),
+          ),
+        ).animate().scaleXY(begin: 0.8, duration: 600.ms, delay: Duration(milliseconds: delay)),
+        const SizedBox(height: 20),
+        Text(title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _C.navy),
+        ).animate().fadeIn(duration: 600.ms, delay: Duration(milliseconds: delay + 100)),
+        const SizedBox(height: 8),
+        Text(description,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 13, color: _C.stone),
+        ).animate().fadeIn(duration: 600.ms, delay: Duration(milliseconds: delay + 200)),
+      ],
+    );
+  }
+}
+
+// ─── BENEFITS SECTION ─────────────────────────────────────────────────────────
+class _BenefitsSection extends StatelessWidget {
+  const _BenefitsSection({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return Container(
+      color: _C.white,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 24 : 72,
+        vertical: isMobile ? 60 : 120,
+      ),
+      child: Column(
+        children: [
+          Text('Pourquoi Nous Choisir',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isMobile ? 32 : 48,
+              fontWeight: FontWeight.w800,
+              color: _C.navy,
+            ),
+          ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.04),
+          const SizedBox(height: 60),
+          GridView.count(
+            crossAxisCount: isMobile ? 1 : 3,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 32,
+            crossAxisSpacing: 32,
+            childAspectRatio: isMobile ? 1.3 : 1.0,
+            children: [
+              _BenefitCard(icon: Icons.lock, title: 'Sécurité Garantie', description: 'Chiffrement 256-bit', delay: 0),
+              _BenefitCard(icon: Icons.support_agent, title: 'Support 24/7', description: 'Toujours à votre écoute', delay: 100),
+              _BenefitCard(icon: Icons.verified_user, title: 'Médecins Certifiés', description: 'Vérifiés et qualifiés', delay: 200),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BenefitCard extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final int delay;
+
+  const _BenefitCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.delay,
+  });
+
+  @override
+  State<_BenefitCard> createState() => _BenefitCardState();
+}
+
+class _BenefitCardState extends State<_BenefitCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          color: _hovered ? _C.navy : _C.white,
+          border: Border.all(color: _hovered ? _C.gold : _C.border, width: 1.5),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _hovered ? _C.gold : _C.gold.withValues(alpha: 0.1),
+              ),
+              child: Icon(widget.icon, color: _hovered ? _C.navy : _C.gold, size: 22),
+            ),
+            const SizedBox(height: 16),
+            Text(widget.title,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: _hovered ? _C.gold : _C.navy,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(widget.description,
+              style: TextStyle(
+                fontSize: 13,
+                color: _hovered ? _C.white : _C.stone,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: 600.ms, delay: Duration(milliseconds: widget.delay)).slideY(begin: 0.04);
+  }
+}
+
+// ─── FAQ SECTION ──────────────────────────────────────────────────────────────
+class _FaqSection extends StatelessWidget {
+  const _FaqSection({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return Container(
+      color: _C.pearl,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 24 : 72,
+        vertical: isMobile ? 60 : 120,
+      ),
+      child: Column(
+        children: [
+          Text('Questions Fréquentes',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isMobile ? 32 : 48,
+              fontWeight: FontWeight.w800,
+              color: _C.navy,
+            ),
+          ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.04),
+          const SizedBox(height: 60),
+          Container(
+            constraints: const BoxConstraints(maxWidth: 800),
+            child: Column(
+              children: [
+                _FaqItem(question: 'Comment puis-je m\'inscrire ?', answer: 'L\'inscription prend 2 minutes. Cliquez sur "S\'inscrire", remplissez vos informations et confirmez votre email.', delay: 0),
+                _FaqItem(question: 'Les consultations sont-elles sécurisées ?', answer: 'Oui, toutes les consultations sont chiffrées avec le standard 256-bit SSL.', delay: 100),
+                _FaqItem(question: 'Quel est le coût d\'une consultation ?', answer: 'Les tarifs varient selon la spécialité du médecin. Consultez notre page tarification pour plus de détails.', delay: 200),
+                _FaqItem(question: 'Puis-je consulter un médecin la nuit ?', answer: 'Oui ! Notre plateforme fonctionne 24h/24, 7j/7 avec des médecins disponibles à tout moment.', delay: 300),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FaqItem extends StatefulWidget {
+  final String question;
+  final String answer;
+  final int delay;
+
+  const _FaqItem({
+    required this.question,
+    required this.answer,
+    required this.delay,
+  });
+
+  @override
+  State<_FaqItem> createState() => _FaqItemState();
+}
+
+class _FaqItemState extends State<_FaqItem> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => setState(() => _expanded = !_expanded),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: _expanded ? _C.gold.withValues(alpha: 0.08) : _C.white,
+          border: Border.all(color: _expanded ? _C.gold : _C.border, width: 1.5),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(widget.question,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _C.navy),
+                  ),
+                ),
+                Icon(_expanded ? Icons.expand_less : Icons.expand_more, color: _C.gold),
+              ],
+            ),
+            if (_expanded) ...[
+              const SizedBox(height: 12),
+              Text(widget.answer,
+                style: const TextStyle(fontSize: 14, color: _C.stone, height: 1.6),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: 600.ms, delay: Duration(milliseconds: widget.delay));
+  }
+}
+
+// ─── CONTACT SECTION ──────────────────────────────────────────────────────────
+class _ContactSection extends StatelessWidget {
+  const _ContactSection({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return Container(
+      color: _C.white,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 24 : 72,
+        vertical: isMobile ? 60 : 120,
+      ),
+      child: Column(
+        children: [
+          Text('Nous Contacter',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isMobile ? 32 : 48,
+              fontWeight: FontWeight.w800,
+              color: _C.navy,
+            ),
+          ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.04),
+          const SizedBox(height: 60),
+          GridView.count(
+            crossAxisCount: isMobile ? 1 : 3,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 24,
+            crossAxisSpacing: 24,
+            childAspectRatio: isMobile ? 1.2 : 0.95,
+            children: [
+              _ContactCard(icon: Icons.email, title: 'Email', value: 'support@esante.com', delay: 0),
+              _ContactCard(icon: Icons.phone, title: 'Téléphone', value: '+33 1 23 45 67 89', delay: 100),
+              _ContactCard(icon: Icons.location_on, title: 'Adresse', value: 'Paris, France', delay: 200),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContactCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String value;
+  final int delay;
+
+  const _ContactCard({
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.delay,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: _C.pearl,
+        border: Border.all(color: _C.border),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 48, height: 48,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: _C.gold,
+            ),
+            child: Icon(icon, color: _C.white, size: 24),
+          ),
+          const SizedBox(height: 16),
+          Text(title,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _C.navy),
+          ),
+          const SizedBox(height: 8),
+          Text(value,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, color: _C.stone),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 600.ms, delay: Duration(milliseconds: delay)).slideY(begin: 0.04);
+  }
+}
+
+// ─── CTA FINAL SECTION ────────────────────────────────────────────────────────
+class _CtaFinalSection extends StatelessWidget {
+  const _CtaFinalSection({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return Container(
+      color: _C.navy,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 24 : 72,
+        vertical: isMobile ? 60 : 120,
+      ),
+      child: Column(
+        children: [
+          Text('Rejoignez E-Santé Aujourd\'hui',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isMobile ? 32 : 56,
+              fontWeight: FontWeight.w800,
+              color: _C.white,
+            ),
+          ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.04),
+          const SizedBox(height: 16),
+          Text('Accédez aux meilleurs médecins, rapidement et simplement',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isMobile ? 14 : 18,
+              color: _C.white.withValues(alpha: 0.8),
+            ),
+          ).animate().fadeIn(duration: 600.ms, delay: 100.ms),
+          const SizedBox(height: 48),
+          if (isMobile)
+            Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => _push(context, const RegisterScreen()),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _C.gold,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('Commencer Maintenant', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _C.navy)),
+                  ),
+                ).animate().fadeIn(duration: 600.ms, delay: 200.ms),
+              ],
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FilledButton(
+                  onPressed: () => _push(context, const RegisterScreen()),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _C.gold,
+                    padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Commencer Maintenant', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _C.navy)),
+                ).animate().fadeIn(duration: 600.ms, delay: 200.ms),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── PREMIUM FOOTER ───────────────────────────────────────────────────────────
+class _PremiumFooter extends StatelessWidget {
+  const _PremiumFooter({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return Container(
+      color: _C.ink,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 24 : 72,
+        vertical: isMobile ? 48 : 80,
+      ),
+      child: Column(
+        children: [
+          if (isMobile)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _FooterColumn(title: 'Produit', items: ['Consultations', 'Ordonnances', 'Dossiers Médicaux']),
+                const SizedBox(height: 32),
+                _FooterColumn(title: 'Entreprise', items: ['À Propos', 'Blog', 'Carrières']),
+                const SizedBox(height: 32),
+                _FooterColumn(title: 'Légal', items: ['Confidentialité', 'Conditions', 'Cookies']),
+                const SizedBox(height: 32),
+                _FooterColumn(title: 'Support', items: ['Aide', 'Contact', 'FAQ']),
+              ],
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _FooterColumn(title: 'Produit', items: ['Consultations', 'Ordonnances', 'Dossiers Médicaux']),
+                _FooterColumn(title: 'Entreprise', items: ['À Propos', 'Blog', 'Carrières']),
+                _FooterColumn(title: 'Légal', items: ['Confidentialité', 'Conditions', 'Cookies']),
+                _FooterColumn(title: 'Support', items: ['Aide', 'Contact', 'FAQ']),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Suivez-nous', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _C.white)),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        _SocialIcon(Icons.facebook),
+                        const SizedBox(width: 12),
+                        _SocialIcon(Icons.mail),
+                        const SizedBox(width: 12),
+                        _SocialIcon(Icons.language),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          const SizedBox(height: 60),
+          Divider(color: _C.charcoal.withValues(alpha: 0.5)),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('© 2026 E-Santé. Tous droits réservés.', style: TextStyle(fontSize: 12, color: _C.stone)),
+              if (!isMobile)
+                Row(
+                  children: [
+                    Text('Français', style: TextStyle(fontSize: 12, color: _C.stone)),
+                    const SizedBox(width: 24),
+                    Text('English', style: TextStyle(fontSize: 12, color: _C.stone.withValues(alpha: 0.6))),
+                  ],
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FooterColumn extends StatelessWidget {
+  final String title;
+  final List<String> items;
+
+  const _FooterColumn({required this.title, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _C.white)),
+        const SizedBox(height: 16),
+        ...items.map((item) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(item, style: TextStyle(fontSize: 13, color: _C.stone)),
+        )),
+      ],
+    );
+  }
+}
+
+class _SocialIcon extends StatefulWidget {
+  final IconData icon;
+  const _SocialIcon(this.icon);
+
+  @override
+  State<_SocialIcon> createState() => _SocialIconState();
+}
+
+class _SocialIconState extends State<_SocialIcon> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 40, height: 40,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: _hovered ? _C.gold : _C.charcoal,
+        ),
+        child: Icon(widget.icon, color: _hovered ? _C.navy : _C.gold, size: 20),
+      ),
+    );
+  }
+}
+
+// ─── FLOATING CTA BUTTON ──────────────────────────────────────────────────────
+class _FloatingCTAButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton(
+      onPressed: () => _push(context, const RegisterScreen()),
+      style: FilledButton.styleFrom(
+        backgroundColor: _C.gold,
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      child: const Text('Prendre RDV', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _C.navy)),
+    );
+  }
+}

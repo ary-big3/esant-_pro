@@ -12,7 +12,7 @@ import 'package:flutter/foundation.dart';
 /// - Headers: Content-Type: application/json
 class ApiService {
   // Configuration
-  static const String baseUrl = 'http://192.168.8.101/esante/backend/public';
+  static const String baseUrl = 'http://192.168.8.103/esante/backend/public';
   static const String apiVersion = 'v1';
   static const Duration timeout = Duration(seconds: 30);
 
@@ -296,11 +296,12 @@ class ApiService {
       // Ajouter le fichier
       final fileStream = http.ByteStream(file.openRead());
       final fileLength = await file.length();
+      final filename = file.path.split(RegExp(r'[\\/]+')).last;
       final multipartFile = http.MultipartFile(
         'file',
         fileStream,
         fileLength,
-        filename: file.path.split('/').last,
+        filename: filename,
       );
       request.files.add(multipartFile);
 

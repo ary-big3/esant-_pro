@@ -170,7 +170,7 @@ class AdminController {
             $validator->validateEnum($input['role'] ?? null, [ROLE_PATIENT, ROLE_MEDECIN, ROLE_INFIRMIERE, ROLE_LABORATOIRE], 'role');
 
             if ($validator->hasErrors()) {
-                Response::badRequest('Données invalides', HTTP_BAD_REQUEST, $validator->getErrors());
+                Response::badRequest('Données invalides', $validator->getErrors());
             }
 
             // Vérifier si l'email existe déjà
@@ -392,6 +392,82 @@ class AdminController {
         } catch (Exception $e) {
             error_log('Activate User Error: ' . $e->getMessage());
             Response::error('Erreur lors de la réactivation: ' . $e->getMessage(), HTTP_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Supprimer un utilisateur
+     */
+    public function deleteUser($userId) {
+        try {
+            $user = AuthMiddleware::verifyAuth();
+            AuthMiddleware::verifyRole(ROLE_ADMIN, $user['role']);
+
+            if ($userId == $user['user_id']) {
+                Response::badRequest('Vous ne pouvez pas vous supprimer vous-même');
+            }
+
+            $stmt = $this->db->prepare('SELECT role FROM users WHERE user_id = ?');
+            $stmt->bind_param('i', $userId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if ($result->num_rows === 0) {
+                Response::notFound('Utilisateur non trouvé');
+            }
+
+            $targetUser = $result->fetch_assoc();
+            $stmt->close();
+            $targetRole = $targetUser['role'];
+
+            if ($targetRole === ROLE_MEDECIN) {
+                $stmt = $this->db->prepare('SELECT doctor_id FROM doctors WHERE user_id = ?');
+                $stmt->bind_param('i', $userId);
+                $stmt->execute();
+                $doctorResult = $stmt->get_result();
+                $doctorId = null;
+                if ($doctorResult->num_rows > 0) {
+                    $doctorRow = $doctorResult->fetch_assoc();
+                    $doctorId = $doctorRow['doctor_id'];
+                }
+                $stmt->close();
+
+                if ($doctorId !== null) {
+                    $stmt = $this->db->prepare('SELECT COUNT(*) as total FROM consultations WHERE doctor_id = ?');
+                    $stmt->bind_param('i', $doctorId);
+                    $stmt->execute();
+                    $countResult = $stmt->get_result();
+                    $hasConsultations = ($countResult->fetch_assoc()['total'] ?? 0) > 0;
+                    $stmt->close();
+
+                    if ($hasConsultations) {
+                        $isActive = false;
+                        $updatedAt = date('Y-m-d H:i:s');
+                        $stmt = $this->db->prepare('UPDATE users SET is_active = ?, updated_at = ? WHERE user_id = ?');
+                        $stmt->bind_param('bsi', $isActive, $updatedAt, $userId);
+                        if (!$stmt->execute()) {
+                            throw new Exception('Erreur lors de la désactivation du médecin');
+                        }
+                        $stmt->close();
+
+                        Response::success(null, 'Médecin ayant des consultations. Le compte a été désactivé.');
+                        return;
+                    }
+                }
+            }
+
+            $stmt = $this->db->prepare('DELETE FROM users WHERE user_id = ?');
+            $stmt->bind_param('i', $userId);
+            if (!$stmt->execute()) {
+                throw new Exception('Erreur lors de la suppression de l\'utilisateur');
+            }
+            $stmt->close();
+
+            Response::success(null, 'Utilisateur supprimé avec succès');
+
+        } catch (Exception $e) {
+            error_log('Delete User Error: ' . $e->getMessage());
+            Response::error('Erreur lors de la suppression: ' . $e->getMessage(), HTTP_SERVER_ERROR);
         }
     }
 

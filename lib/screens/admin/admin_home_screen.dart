@@ -5,7 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
-import '../auth/login_screen.dart';
+import '../auth/welcome_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
@@ -43,12 +43,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   String? _selectedBloodGroup;
   String? _selectedParentId;
   List<Map<String, dynamic>> _parentPatients = [];
+  List<Map<String, dynamic>> _specialities = [];
+  String? _selectedSpecialityId;
+  bool _isLoadingSpecialities = false;
 
   @override
   void initState() {
     super.initState();
     _loadStats();
     _loadUsers();
+    _loadSpecialities();
   }
 
   int _parseInt(dynamic value) {
@@ -114,9 +118,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     };
 
     if (role == 'medecin') {
-      body['specialty'] = _specialiteController.text.trim().isEmpty 
-          ? 'Généraliste' 
-          : _specialiteController.text.trim();
+      // Récupérer le nom de la spécialité sélectionnée
+      String specialtyName = 'Généraliste';
+      if (_selectedSpecialityId != null && _specialities.isNotEmpty) {
+        final found = _specialities.firstWhere(
+          (s) => s['speciality_id'].toString() == _selectedSpecialityId,
+          orElse: () => {},
+        );
+        if (found.isNotEmpty) {
+          specialtyName = found['speciality_name'] ?? 'Généraliste';
+        }
+      }
+      body['specialty'] = specialtyName;
     }
 
     if (isChild) {
@@ -181,6 +194,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     _selectedGender = 'M';
     _selectedBloodGroup = null;
     _selectedParentId = null;
+    _selectedSpecialityId = null;
   }
 
   Future<void> _loadParentPatients([StateSetter? setDialogState]) async {
@@ -203,6 +217,74 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       }
     } catch (e) {
       if (kDebugMode) print('Erreur chargement parents: $e');
+    }
+  }
+
+  Future<void> _loadSpecialities() async {
+    try {
+      setState(() => _isLoadingSpecialities = true);
+      final response = await _apiService.get('/admin/specialities');
+      if (response['success'] == true && response['data'] is List) {
+        setState(() {
+          _specialities = (response['data'] as List).cast<Map<String, dynamic>>();
+          _isLoadingSpecialities = false;
+        });
+        if (kDebugMode) print('✅ Spécialités chargées: ${_specialities.length}');
+      } else {
+        setState(() => _isLoadingSpecialities = false);
+        if (kDebugMode) print('❌ Erreur API spécialités: ${response['message']}');
+      }
+    } catch (e) {
+      if (kDebugMode) print('❌ Erreur chargement spécialités: $e');
+      setState(() => _isLoadingSpecialities = false);
+    }
+  }
+
+  Future<void> _confirmDeleteUser(Map<String, dynamic> user) async {
+    final userId = user['user_id']?.toString();
+    if (userId == null || userId.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmer la suppression'),
+        content: Text('Voulez-vous vraiment supprimer ${user['full_name'] ?? 'cet utilisateur'} ?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Supprimer')),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteUser(userId);
+    }
+  }
+
+  Future<void> _deleteUser(String userId) async {
+    try {
+      final response = await _apiService.delete('/admin/users/$userId');
+      if (response['success'] == true) {
+        if (mounted) {
+          _loadStats();
+          _loadUsers();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['message'] ?? 'Utilisateur supprimé'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur suppression utilisateur: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
   }
 
@@ -234,7 +316,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             onPressed: () {
               AuthService().logout();
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
+                MaterialPageRoute(builder: (context) => const WelcomeScreen()),
                 (route) => false,
               );
             },
@@ -647,6 +729,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               shape: BoxShape.circle,
             ),
           ),
+          if (role != 'admin')
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444)),
+              tooltip: 'Supprimer cet utilisateur',
+              onPressed: () => _confirmDeleteUser(user),
+            ),
         ],
       ),
     );
@@ -669,6 +757,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     _selectedGender = 'M';
     _selectedBloodGroup = null;
     _selectedParentId = null;
+    _selectedSpecialityId = null;
     _parentPatients = [];
 
     showDialog(
@@ -678,6 +767,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           // Load parents on first build for child accounts
           if (isEnfant && _parentPatients.isEmpty) {
             _loadParentPatients(setDialogState);
+          }
+          // Load specialities on first build for doctor accounts
+          if (isMedecin && _specialities.isEmpty && !_isLoadingSpecialities) {
+            _loadSpecialities();
           }
           return AlertDialog(
           title: Text(title),
@@ -719,10 +812,52 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   ),
                   if (isMedecin) ...[
                     const SizedBox(height: 10),
-                    AppTextField(
-                      label: 'Spécialité',
-                      controller: _specialiteController,
-                      validator: (v) => v?.isEmpty ?? true ? 'Requis' : null,
+                    Builder(
+                      builder: (context) {
+                        if (_isLoadingSpecialities) {
+                          return const Center(child: SizedBox(height: 20, child: CircularProgressIndicator()));
+                        }
+                        
+                        // Préparer les items du dropdown
+                        final dropdownItems = <DropdownMenuItem<String>>[];
+                        
+                        if (_specialities.isEmpty) {
+                          dropdownItems.add(
+                            const DropdownMenuItem(
+                              value: 'Généraliste',
+                              child: Text('Généraliste (défaut)'),
+                            ),
+                          );
+                        } else {
+                          for (var spec in _specialities) {
+                            dropdownItems.add(
+                              DropdownMenuItem(
+                                value: spec['speciality_id'].toString(),
+                                child: Text(spec['speciality_name'] ?? 'N/A'),
+                              ),
+                            );
+                          }
+                        }
+                        
+                        return DropdownButtonFormField<String>(
+                          value: _selectedSpecialityId,
+                          decoration: const InputDecoration(
+                            labelText: 'Spécialité',
+                            hintText: 'Sélectionnez une spécialité',
+                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: Color(0xFFF1F5F9),
+                          ),
+                          items: dropdownItems,
+                          validator: (v) => v == null || v.isEmpty ? 'Sélectionnez une spécialité' : null,
+                          onChanged: (v) {
+                            setDialogState(() {
+                              _selectedSpecialityId = v;
+                            });
+                          },
+                          isExpanded: true,
+                        );
+                      },
                     ),
                   ],
                   if (isEnfant) ...[

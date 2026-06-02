@@ -1,0 +1,87 @@
+@startuml "Diagramme de cas d'utilisation e-santé"
+left to right direction
+
+left actor Patient as P
+left actor Nurse as N
+right actor Doctor as D
+right actor Laboratory as L
+top actor Administrator as A
+
+rectangle "Authentification" {
+    (S'inscrire)
+    (Se connecter)
+}
+
+rectangle "Patient" {
+    (Consulter dossier médical)
+    (Prendre rendez-vous)
+    (Partager document médical)
+    (Demander accès à un document)
+}
+
+rectangle "Soins" {
+    (Consulter patient)
+    (Prescrire un médicament)
+    (Demander un examen)
+    (Enregistrer constantes vitales)
+    (Gérer planning infirmier)
+}
+
+rectangle "Laboratoire" {
+    (Recevoir demande d'examen)
+    (Réaliser examen)
+    (Publier résultat d'examen)
+}
+
+rectangle "Administration" {
+    (Gérer comptes utilisateurs)
+    (Configurer paramètres système)
+    (Consulter journaux d'accès)
+}
+
+' Acteurs principaux
+Patient -- (S'inscrire)
+Patient -- (Se connecter)
+Patient -- (Consulter dossier médical)
+Patient -- (Prendre rendez-vous)
+Patient -- (Partager document médical)
+Patient -- (Demander accès à un document)
+
+Doctor -- (Se connecter)
+Doctor -- (Consulter patient)
+Doctor -- (Prescrire un médicament)
+Doctor -- (Demander un examen)
+
+Nurse -- (Se connecter)
+Nurse -- (Enregistrer constantes vitales)
+Nurse -- (Gérer planning infirmier)
+
+Laboratory -- (Se connecter)
+Laboratory -- (Recevoir demande d'examen)
+Laboratory -- (Réaliser examen)
+Laboratory -- (Publier résultat d'examen)
+
+Administrator -- (Se connecter)
+Administrator -- (Gérer comptes utilisateurs)
+Administrator -- (Configurer paramètres système)
+Administrator -- (Consulter journaux d'accès)
+
+' Includes d'authentification avec flèches
+(Consulter dossier médical) ..> (Se connecter) : <<include>>
+(Prendre rendez-vous) ..> (Se connecter) : <<include>>
+(Partager document médical) ..> (Se connecter) : <<include>>
+(Demander accès à un document) ..> (Se connecter) : <<include>>
+(Consulter patient) ..> (Se connecter) : <<include>>
+(Prescrire un médicament) ..> (Se connecter) : <<include>>
+(Demander un examen) ..> (Se connecter) : <<include>>
+(Enregistrer constantes vitales) ..> (Se connecter) : <<include>>
+(Gérer planning infirmier) ..> (Se connecter) : <<include>>
+(Recevoir demande d'examen) ..> (Se connecter) : <<include>>
+(Réaliser examen) ..> (Se connecter) : <<include>>
+(Publier résultat d'examen) ..> (Se connecter) : <<include>>
+(Gérer comptes utilisateurs) ..> (Se connecter) : <<include>>
+(Configurer paramètres système) ..> (Se connecter) : <<include>>
+(Consulter journaux d'accès) ..> (Se connecter) : <<include>>
+(S'inscrire) ..> (Se connecter) : <<include>>
+
+@enduml

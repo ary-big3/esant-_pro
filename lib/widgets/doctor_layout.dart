@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:hopital/utils/token_helper.dart';
 import '../../core/theme/doctor_theme.dart';
 import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
+import '../../screens/auth/welcome_screen.dart';
 
 /// Layout principal pour l'interface médecin avec sidebar et topbar
 class DoctorLayout extends StatefulWidget {
@@ -11,6 +13,7 @@ class DoctorLayout extends StatefulWidget {
   final List<Widget> pages;
   final String doctorName;
   final String specialty;
+  final List<({String label, IconData icon, String route})>? navigationItems;
 
   const DoctorLayout({
     Key? key,
@@ -19,6 +22,7 @@ class DoctorLayout extends StatefulWidget {
     required this.pages,
     required this.doctorName,
     required this.specialty,
+    this.navigationItems,
   }) : super(key: key);
 
   @override
@@ -31,13 +35,16 @@ class _DoctorLayoutState extends State<DoctorLayout> {
   List<Map<String, dynamic>> _notifications = [];
   int _unreadCount = 0;
 
-  final List<({String label, IconData icon, String route})> _navigationItems = [
+  static const List<({String label, IconData icon, String route})> _defaultNavigationItems = [
     (label: 'Tableau de bord', icon: Icons.dashboard_rounded, route: 'dashboard'),
     (label: 'Patients', icon: Icons.people_rounded, route: 'patients'),
     (label: 'Rendez-vous', icon: Icons.calendar_today_rounded, route: 'agenda'),
+    (label: 'Notifications', icon: Icons.notifications_rounded, route: 'notifications'),
     (label: 'Profil', icon: Icons.person_rounded, route: 'profile'),
-    (label: 'Paramètres', icon: Icons.settings_rounded, route: 'settings'),
   ];
+
+  List<({String label, IconData icon, String route})> get _navigationItems =>
+      widget.navigationItems ?? _defaultNavigationItems;
 
   @override
   Widget build(BuildContext context) {
@@ -106,16 +113,31 @@ class _DoctorLayoutState extends State<DoctorLayout> {
             child: Column(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(DoctorTheme.spacing12),
+                  padding: const EdgeInsets.all(DoctorTheme.spacing8),
                   decoration: BoxDecoration(
-                    gradient: DoctorTheme.goldGradient,
                     borderRadius: DoctorTheme.radiusSmall,
                     boxShadow: DoctorTheme.neonGlow,
                   ),
-                  child: const Icon(
-                    Icons.health_and_safety_rounded,
-                    color: Color(0xFF0F1A2E),
-                    size: 24,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      'assets/images/icone.ico',
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        padding: const EdgeInsets.all(DoctorTheme.spacing12),
+                        decoration: BoxDecoration(
+                          gradient: DoctorTheme.goldGradient,
+                          borderRadius: DoctorTheme.radiusSmall,
+                        ),
+                        child: const Icon(
+                          Icons.health_and_safety_rounded,
+                          color: Color(0xFF0F1A2E),
+                          size: 24,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: DoctorTheme.spacing12),
@@ -570,7 +592,6 @@ class _DoctorLayoutState extends State<DoctorLayout> {
       final response = await _apiService.put(
         '/appointments/$appointmentId/approve',
         body: {},
-        requireAuth: true,
       );
 
       if (response['success'] == true) {
@@ -614,7 +635,10 @@ class _DoctorLayoutState extends State<DoctorLayout> {
           TextButton(
             onPressed: () {
               _authService.logout();
-              Navigator.pop(context);
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+                (route) => false,
+              );
             },
             child: const Text('Déconnexion', style: TextStyle(color: DoctorTheme.dangerRed)),
           ),

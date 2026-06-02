@@ -44,6 +44,9 @@ class ConsultationController {
             $input['chief_complaint'] = $input['chief_complaint'] ?? $input['motif'] ?? null;
             $input['notes'] = $input['notes'] ?? $input['observations'] ?? null;
             $input['diagnosis'] = $input['diagnosis'] ?? $input['diagnostic'] ?? null;
+            
+            error_log('🔍 [ConsultationController::create] Input reçu: ' . json_encode($input));
+            error_log('🔍 [ConsultationController::create] After mapping - consultation_date: ' . ($input['consultation_date'] ?? 'NULL') . ', notes: ' . ($input['notes'] ?? 'NULL') . ', diagnosis: ' . ($input['diagnosis'] ?? 'NULL'));
 
             $validator = new Validator();
             $validator->validateRequired($input['patient_id'] ?? null, 'patient_id');
@@ -74,16 +77,21 @@ class ConsultationController {
             $consultationDateRaw = $input['consultation_date'];
             $consultationDate = date('Y-m-d H:i:s', strtotime($consultationDateRaw));
             $consultationType = $input['consultation_type'] ?? 'en_personne';
-            $reasonForVisit = !empty($input['reason_for_visit']) ? $input['reason_for_visit'] : null;
-            $chiefComplaint = !empty($input['chief_complaint']) ? $input['chief_complaint'] : null;
-            $diagnosis = !empty($input['diagnosis']) ? $input['diagnosis'] : null;
-            $treatmentPlan = !empty($input['treatment_plan']) ? $input['treatment_plan'] : null;
-            $notes = !empty($input['notes']) ? $input['notes'] : null;
-            $futureFollowUp = !empty($input['future_date_follow_up']) ? $input['future_date_follow_up'] : null;
+            $reasonForVisit = isset($input['reason_for_visit']) && $input['reason_for_visit'] !== '' ? $input['reason_for_visit'] : 'Consultation de suivi';
+            $chiefComplaint = isset($input['chief_complaint']) && $input['chief_complaint'] !== '' ? $input['chief_complaint'] : 'Non spécifié';
+            $diagnosis = isset($input['diagnosis']) && $input['diagnosis'] !== '' ? $input['diagnosis'] : 'En cours d\'évaluation';
+            $treatmentPlan = isset($input['treatment_plan']) && $input['treatment_plan'] !== '' ? $input['treatment_plan'] : 'Traitement à définir';
+            $notes = isset($input['notes']) && $input['notes'] !== '' ? $input['notes'] : 'Aucune note particulière';
+            $futureFollowUp = isset($input['future_date_follow_up']) ? $input['future_date_follow_up'] : null;
             $consultationStatus = CONSULTATION_COMPLETED;
             $prescriptionIncluded = $input['prescription_included'] ?? false;
-            $specialityId = !empty($input['speciality_id']) ? $input['speciality_id'] : null;
+            $specialityId = isset($input['speciality_id']) ? $input['speciality_id'] : null;
             $now = date('Y-m-d H:i:s');
+            
+            error_log('💾 [ConsultationController::create] Données à sauvegarder:');
+            error_log('   - consultation_date: ' . $consultationDate);
+            error_log('   - notes: ' . ($notes ?? 'NULL'));
+            error_log('   - diagnosis: ' . ($diagnosis ?? 'NULL'));
 
             $stmt = $this->db->prepare(
                 'INSERT INTO consultations (patient_id, doctor_id, speciality_id, consultation_date, consultation_type, reason_for_visit, chief_complaint, diagnosis, treatment_plan, notes, future_date_follow_up, consultation_status, prescription_included, created_at)
@@ -93,11 +101,14 @@ class ConsultationController {
             $stmt->bind_param('iiisssssssisss', $patientId, $doctorId, $specialityId, $consultationDate, $consultationType, $reasonForVisit, $chiefComplaint, $diagnosis, $treatmentPlan, $notes, $futureFollowUp, $consultationStatus, $prescriptionIncluded, $now);
 
             if (!$stmt->execute()) {
-                throw new Exception('Erreur lors de la création de la consultation');
+                error_log('❌ [ConsultationController::create] Erreur INSERT: ' . $this->db->error);
+                throw new Exception('Erreur lors de la création de la consultation: ' . $this->db->error);
             }
 
             $consultationId = $this->db->insert_id;
             $stmt->close();
+            
+            error_log('✅ [ConsultationController::create] Consultation créée avec ID: ' . $consultationId);
 
             // Créer une notification
             $this->createNotification($patientId, 'alert', 'Consultation enregistrée', 'Une consultation a été enregistrée', null, null, null);
@@ -116,7 +127,7 @@ class ConsultationController {
     /**
      * Obtenir les consultations du patient
      */
-    public function getPatientConsultations($page = 1, $limit = DEFAULT_PAGE_SIZE) {
+    public function getPatientConsultations($patientIdParam = null, $page = 1, $limit = DEFAULT_PAGE_SIZE) {
         try {
             $user = AuthMiddleware::verifyAuth();
 
@@ -131,9 +142,12 @@ class ConsultationController {
                 }
                 $patientId = $result->fetch_assoc()['patient_id'];
                 $stmt->close();
+            } else if ($user['role'] === ROLE_MEDECIN && $patientIdParam !== null) {
+                // Les médecins peuvent accéder aux consultations du patient via l'URL
+                $patientId = (int)$patientIdParam;
             } else {
                 $patientId = null;
-                // TODO: Implémenter l'accès pour les médecins
+                Response::forbidden('Accès non autorisé aux consultations');
             }
 
             $offset = ($page - 1) * $limit;
@@ -148,7 +162,7 @@ class ConsultationController {
 
             // Récupérer les consultations
             $stmt = $this->db->prepare(
-                'SELECT c.*, d.first_name as doctor_first_name, d.last_name as doctor_last_name, s.name as speciality_name
+                'SELECT c.consultation_id, c.patient_id, c.doctor_id, c.speciality_id, c.consultation_date, c.consultation_type, c.reason_for_visit, c.chief_complaint, c.diagnosis, c.treatment_plan, c.notes, c.future_date_follow_up, c.consultation_status, c.created_at, c.updated_at, d.first_name as doctor_first_name, d.last_name as doctor_last_name, s.name as speciality_name
                  FROM consultations c
                  LEFT JOIN doctors d ON c.doctor_id = d.doctor_id
                  LEFT JOIN specialities s ON c.speciality_id = s.speciality_id
@@ -162,9 +176,19 @@ class ConsultationController {
 
             $consultations = [];
             while ($row = $result->fetch_assoc()) {
+                // Remplacer les null par des valeurs par défaut
+                $row['reason_for_visit'] = $row['reason_for_visit'] ?? 'Consultation de suivi';
+                $row['chief_complaint'] = $row['chief_complaint'] ?? 'Non spécifié';
+                $row['diagnosis'] = $row['diagnosis'] ?? 'En cours d\'évaluation';
+                $row['treatment_plan'] = $row['treatment_plan'] ?? 'Traitement à définir';
+                $row['notes'] = $row['notes'] ?? 'Aucune note particulière';
+                
+                error_log('🔍 [getPatientConsultations] Consultation - ID: ' . $row['consultation_id'] . ', Date: ' . ($row['consultation_date'] ?? 'NULL') . ', Notes: ' . ($row['notes'] ?? 'NULL'));
                 $consultations[] = $row;
             }
             $stmt->close();
+            
+            error_log('✅ [getPatientConsultations] Total: ' . count($consultations) . ' consultations retournées');
 
             Response::paginated($consultations, $total, $page, $limit, 'Consultations récupérées');
 
@@ -198,6 +222,13 @@ class ConsultationController {
 
             $consultation = $result->fetch_assoc();
             $stmt->close();
+
+            // Remplacer les null par des valeurs par défaut
+            $consultation['reason_for_visit'] = $consultation['reason_for_visit'] ?? 'Consultation de suivi';
+            $consultation['chief_complaint'] = $consultation['chief_complaint'] ?? 'Non spécifié';
+            $consultation['diagnosis'] = $consultation['diagnosis'] ?? 'En cours d\'évaluation';
+            $consultation['treatment_plan'] = $consultation['treatment_plan'] ?? 'Traitement à définir';
+            $consultation['notes'] = $consultation['notes'] ?? 'Aucune note particulière';
 
             // Vérifier les permissions
             if ($user['role'] === ROLE_PATIENT) {

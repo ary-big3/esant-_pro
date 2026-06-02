@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:http/http.dart' as http;
 import '../../core/theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../../services/api_service.dart';
 import '../../utils/token_helper.dart';
+import 'file_saver_stub.dart' if (dart.library.io) 'file_saver_io.dart' as file_saver;
 
 class PatientDossierScreen extends StatefulWidget {
   final String? childId;
@@ -34,6 +37,7 @@ class _PatientDossierScreenState extends State<PatientDossierScreen>
   };
   List<dynamic> _consultations = [];
   List<dynamic> _exams = [];
+  List<dynamic> _documents = [];
   List<dynamic> _diagnostics = [];
   String _lastUpdateDate = 'N/A';
   Map<String, dynamic> _medicalHistory = {};
@@ -129,6 +133,24 @@ class _PatientDossierScreenState extends State<PatientDossierScreen>
             }
             if (kDebugMode) print('✅ ${_exams.length} examens chargés');
           });
+        }
+
+        // Charger les documents médicaux du dossier patient
+        if (patientId != null) {
+          final documentsResponse = await apiService.get('/medical-dossier/$patientId/documents?page=1&limit=50', requireAuth: true);
+          if (documentsResponse['success'] == true && documentsResponse['data'] != null) {
+          setState(() {
+            final documentsData = documentsResponse['data'];
+            if (documentsData is Map && documentsData['documents'] != null) {
+              _documents = documentsData['documents'] is List ? documentsData['documents'] : [];
+            } else if (documentsData is List) {
+              _documents = documentsData;
+            } else {
+              _documents = [];
+            }
+            if (kDebugMode) print('✅ ${_documents.length} documents chargés');
+          });
+        }
         }
 
         // Charger les diagnostics (via consultations qui contiennent les diagnostics)
@@ -256,7 +278,7 @@ class _PatientDossierScreenState extends State<PatientDossierScreen>
                 _ExamensTab(exams: _exams),
                 _DiagnosticsTab(diagnostics: _diagnostics),
                 _VaccinationsTab(),
-                _DocumentsTab(exams: _exams),
+                _DocumentsTab(documents: _documents),
               ],
             ),
           ),
@@ -553,6 +575,25 @@ class _ConsultationsTab extends StatelessWidget {
   }
 
   void _showConsultationDetails(BuildContext context, Map<String, dynamic> consultation) {
+    // Chercher la date dans plusieurs champs possibles et la formater
+    String formattedDate = 'Date inconnue';
+    final dateField = consultation['consultation_date'] ?? 
+                      consultation['created_at'] ?? 
+                      consultation['date'] ?? 
+                      consultation['created_date'];
+    
+    if (dateField != null && dateField.toString().isNotEmpty) {
+      try {
+        final dateObj = DateTime.parse(dateField.toString());
+        formattedDate = '${dateObj.day}/${dateObj.month.toString().padLeft(2, '0')}/${dateObj.year}';
+      } catch (e) {
+        formattedDate = dateField.toString().split(' ')[0];
+      }
+    }
+    
+    // Récupérer les notes
+    final notes = consultation['notes'] ?? consultation['observations'] ?? '';
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -564,13 +605,13 @@ class _ConsultationsTab extends StatelessWidget {
             children: [
               _DetailRow('Médecin:', consultation['doctor_name'] ?? 'N/A'),
               _DetailRow('Spécialité:', consultation['speciality_name'] ?? 'N/A'),
-              _DetailRow('Date:', consultation['created_at']?.toString().split(' ')[0] ?? 'N/A'),
+              _DetailRow('Date:', formattedDate),
               if (consultation['diagnosis'] != null && consultation['diagnosis'].toString().isNotEmpty)
                 _DetailRow('Diagnostic:', consultation['diagnosis']),
               if (consultation['treatment'] != null && consultation['treatment'].toString().isNotEmpty)
                 _DetailRow('Traitement:', consultation['treatment']),
-              if (consultation['notes'] != null && consultation['notes'].toString().isNotEmpty)
-                _DetailRow('Notes:', consultation['notes']),
+              // Afficher les notes TOUJOURS
+              _DetailRow('Notes:', notes.isEmpty ? 'Aucune note enregistrée' : notes),
             ],
           ),
         ),
@@ -857,9 +898,24 @@ class _DiagnosticCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            _InfoRow(
-              label: 'Date',
-              value: diagnostic['consultation_date']?.toString().split(' ')[0] ?? 'N/A',
+            Builder(
+              builder: (context) {
+                // Format consultation date properly
+                String formattedDate = 'N/A';
+                final dateField = diagnostic['consultation_date'];
+                if (dateField != null && dateField.toString().isNotEmpty) {
+                  try {
+                    final dateObj = DateTime.parse(dateField.toString());
+                    formattedDate = '${dateObj.day}/${dateObj.month.toString().padLeft(2, '0')}/${dateObj.year}';
+                  } catch (e) {
+                    formattedDate = dateField.toString().split(' ')[0];
+                  }
+                }
+                return _InfoRow(
+                  label: 'Date',
+                  value: formattedDate,
+                );
+              },
             ),
             _InfoRow(
               label: 'Médecin',
@@ -885,6 +941,18 @@ class _DiagnosticCard extends StatelessWidget {
   }
 
   void _showDiagnosticDetails(BuildContext context) {
+    // Format consultation date properly
+    String formattedDate = 'N/A';
+    final dateField = diagnostic['consultation_date'];
+    if (dateField != null && dateField.toString().isNotEmpty) {
+      try {
+        final dateObj = DateTime.parse(dateField.toString());
+        formattedDate = '${dateObj.day}/${dateObj.month.toString().padLeft(2, '0')}/${dateObj.year}';
+      } catch (e) {
+        formattedDate = dateField.toString().split(' ')[0];
+      }
+    }
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -895,7 +963,7 @@ class _DiagnosticCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _DetailRow('Diagnostic:', diagnostic['diagnosis'] ?? 'N/A'),
-              _DetailRow('Date:', diagnostic['consultation_date']?.toString() ?? 'N/A'),
+              _DetailRow('Date:', formattedDate),
               _DetailRow('Médecin:', '${diagnostic['doctor_first_name'] ?? ''} ${diagnostic['doctor_last_name'] ?? ''}'.trim()),
               if (diagnostic['treatment'] != null && diagnostic['treatment'].toString().isNotEmpty)
                 _DetailRow('Traitement:', diagnostic['treatment']),
@@ -930,16 +998,63 @@ class _VaccinationsTab extends StatelessWidget {
 }
 
 class _DocumentsTab extends StatelessWidget {
-  final List<dynamic> exams;
+  final List<dynamic> documents;
 
-  const _DocumentsTab({required this.exams});
+  const _DocumentsTab({required this.documents});
+
+  Future<String> _resolveDownloadUrl(String fileUrl) async {
+    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+      return fileUrl;
+    }
+
+    final baseUri = Uri.parse(ApiService.baseUrl);
+    final origin = '${baseUri.scheme}://${baseUri.host}${baseUri.hasPort ? ':${baseUri.port}' : ''}';
+    if (fileUrl.startsWith('/')) {
+      return '$origin$fileUrl';
+    }
+    return '$origin/$fileUrl';
+  }
+
+  Future<void> _downloadDocument(BuildContext context, String fileUrl) async {
+    try {
+      final resolvedUrl = await _resolveDownloadUrl(fileUrl);
+      final uri = Uri.parse(resolvedUrl);
+      final response = await http.get(uri).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode != 200) {
+        throw Exception('Impossible de télécharger le document (code ${response.statusCode})');
+      }
+
+      final fileName = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'document.pdf';
+      final bytes = response.bodyBytes;
+      await file_saver.FileSaver.saveAndOpen(bytes: bytes, fileName: fileName);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Document téléchargé: $fileName'),
+            backgroundColor: AppColors.success,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) print('Erreur téléchargement document: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur téléchargement: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Filtrer les examens complétés (résultats disponibles)
-    final completedExams = exams.where((e) => e['exam_status'] == 'completed').toList();
-
-    if (completedExams.isEmpty) {
+    if (documents.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -947,7 +1062,7 @@ class _DocumentsTab extends StatelessWidget {
             Icon(Icons.file_present, size: 48, color: AppColors.textSecondary.withValues(alpha: 0.5)),
             const SizedBox(height: 16),
             Text(
-              'Aucun résultat d\'examen disponible',
+              'Aucun document disponible',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -957,120 +1072,44 @@ class _DocumentsTab extends StatelessWidget {
       );
     }
 
-    return SingleChildScrollView(
+    return ListView.separated(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Résultats d\'examens disponibles (${completedExams.length})',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 16),
-          ...completedExams.map((exam) => GestureDetector(
-            onTap: () => _showResultDetails(context, exam),
-            child: AppCard(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              exam['exam_type'] ?? 'Examen',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Spécialité: ${exam['speciality_name'] ?? 'N/A'}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          '✓ Complété',
-                          style: TextStyle(
-                            color: Colors.green,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Date: ${exam['created_at']?.toString().split(' ')[0] ?? 'N/A'}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '👆 Cliquez pour voir les résultats',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.primary,
-                          fontStyle: FontStyle.italic,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-          )).toList(),
-        ],
-      ),
-    );
-  }
+      itemCount: documents.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final document = documents[index] as Map<String, dynamic>;
+        final title = document['document_title'] ?? 'Document';
+        final type = document['document_type'] ?? 'Non spécifié';
+        final date = document['upload_date'] ?? document['created_at'] ?? 'N/A';
+        final fileUrl = document['file_url'] ?? document['file_path'] ?? '';
 
-  void _showResultDetails(BuildContext context, Map<String, dynamic> exam) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Résultats - ${exam['exam_type']}'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+        return AppCard(
+          onTap: fileUrl.isNotEmpty ? () => _downloadDocument(context, fileUrl) : null,
+          child: Row(
             children: [
-              _DetailRow('Type d\'examen:', exam['exam_type'] ?? 'N/A'),
-              _DetailRow('Spécialité:', exam['speciality_name'] ?? 'N/A'),
-              _DetailRow('Date:', exam['created_at']?.toString() ?? 'N/A'),
-              _DetailRow('Laboratoire:', exam['laboratory_name'] ?? 'Non spécifié'),
-              if (exam['result_interpretation'] != null && exam['result_interpretation'].toString().isNotEmpty)
-                _DetailRow('Interprétation:', exam['result_interpretation']),
-              if (exam['observations'] != null && exam['observations'].toString().isNotEmpty)
-                _DetailRow('Observations:', exam['observations']),
+              const Icon(Icons.description, color: AppColors.primary),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Type: $type • Date: ${date.toString().split(' ')[0]}',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                fileUrl.isNotEmpty ? Icons.download : Icons.lock,
+                color: fileUrl.isNotEmpty ? AppColors.primary : Colors.grey,
+              ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              // Ici on pourrait ajouter un téléchargement de PDF
-            },
-            icon: const Icon(Icons.download),
-            label: const Text('Télécharger'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

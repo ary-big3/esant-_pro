@@ -523,13 +523,7 @@ class ExamController {
             
             $stmt->close();
 
-            Response::success([
-                'exams' => $exams,
-                'total' => $total,
-                'page' => $page,
-                'limit' => $limit,
-                'pages' => ceil($total / $limit)
-            ], 'Examens récupérés');
+            Response::paginated($exams, $total, $page, $limit, 'Examens récupérés');
 
         } catch (Exception $e) {
             error_log('Get Patient Exams Error: ' . $e->getMessage());

@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
 import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+
 import '../../core/theme/app_theme.dart';
 import '../../services/api_service.dart';
 
@@ -14,7 +16,8 @@ class DoctorUploadDocumentScreen extends StatefulWidget {
 class _DoctorUploadDocumentScreenState extends State<DoctorUploadDocumentScreen> {
   final TextEditingController _patientIdController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  File? _selectedFile;
+  List<int>? _fileBytes;
+  String? _fileName;
   String _selectedDocumentType = 'Bilan';
   bool _isLoading = false;
 
@@ -36,18 +39,39 @@ class _DoctorUploadDocumentScreenState extends State<DoctorUploadDocumentScreen>
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
+        withData: true,
       );
 
       if (result != null) {
-        setState(() {
-          _selectedFile = result.files.single as File?;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Fichier sélectionné: ${result.files.single.name}'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        final pickedFile = result.files.single;
+        if (pickedFile.bytes != null) {
+          setState(() {
+            _fileBytes = pickedFile.bytes;
+            _fileName = pickedFile.name;
+          });
+        } else if (pickedFile.path != null && pickedFile.path!.isNotEmpty) {
+          final file = File(pickedFile.path!);
+          setState(() {
+            _fileBytes = file.readAsBytesSync();
+            _fileName = pickedFile.name;
+          });
+        }
+
+        if (_fileBytes != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Fichier sélectionné: ${_fileName ?? 'document'}'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Impossible de charger le fichier sélectionné'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -70,7 +94,7 @@ class _DoctorUploadDocumentScreenState extends State<DoctorUploadDocumentScreen>
       return;
     }
 
-    if (_selectedFile == null) {
+    if (_fileBytes == null || _fileName == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Veuillez sélectionner un fichier'),
@@ -85,17 +109,20 @@ class _DoctorUploadDocumentScreenState extends State<DoctorUploadDocumentScreen>
     try {
       debugPrint('🔵 [UPLOAD] Début upload');
       debugPrint('🔵 [UPLOAD] Patient ID: ${_patientIdController.text}');
-      debugPrint('🔵 [UPLOAD] Fichier: ${_selectedFile!.path}');
+      debugPrint('🔵 [UPLOAD] Document: $_fileName');
       debugPrint('🔵 [UPLOAD] Type: $_selectedDocumentType');
 
-      final response = await ApiService().multipartPost(
+      final fields = {
+        'patient_id': _patientIdController.text,
+        'document_type': _selectedDocumentType,
+        'description': _descriptionController.text,
+      };
+
+      final response = await ApiService().multipartPostBytes(
         '/doctor/documents/upload',
-        file: _selectedFile!,
-        fields: {
-          'patient_id': _patientIdController.text,
-          'document_type': _selectedDocumentType,
-          'description': _descriptionController.text,
-        },
+        bytes: _fileBytes!,
+        fileName: _fileName!,
+        fields: fields,
       );
 
       debugPrint('🟢 [UPLOAD] Réponse: $response');
@@ -112,18 +139,15 @@ class _DoctorUploadDocumentScreenState extends State<DoctorUploadDocumentScreen>
         _patientIdController.clear();
         _descriptionController.clear();
         setState(() {
-          _selectedFile = null;
+          _fileBytes = null;
+          _fileName = null;
           _selectedDocumentType = 'Bilan';
         });
 
-        // Revenir en arrière
         Navigator.pop(context);
       }
     } on ApiException catch (e) {
       debugPrint('❌ [UPLOAD] ApiException: ${e.message}');
-      debugPrint('❌ [UPLOAD] Status: ${e.statusCode}');
-      debugPrint('❌ [UPLOAD] Erreurs: ${e.errors}');
-      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -260,7 +284,7 @@ class _DoctorUploadDocumentScreenState extends State<DoctorUploadDocumentScreen>
                     width: 2,
                   ),
                   borderRadius: BorderRadius.circular(8),
-                  color: _selectedFile != null
+                  color: _fileName != null
                       ? AppColors.success.withValues(alpha: 0.1)
                       : Colors.transparent,
                 ),
@@ -269,17 +293,17 @@ class _DoctorUploadDocumentScreenState extends State<DoctorUploadDocumentScreen>
                     Icon(
                       Icons.cloud_upload_outlined,
                       size: 32,
-                      color: _selectedFile != null ? AppColors.success : AppColors.textSecondary,
+                      color: _fileName != null ? AppColors.success : AppColors.textSecondary,
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _selectedFile != null
-                          ? _selectedFile!.path.split('/').last
+                      _fileName != null
+                          ? _fileName!
                           : 'Cliquez pour sélectionner un fichier',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: _selectedFile != null ? AppColors.success : AppColors.textSecondary,
-                        fontWeight: _selectedFile != null ? FontWeight.bold : FontWeight.normal,
+                        color: _fileName != null ? AppColors.success : AppColors.textSecondary,
+                        fontWeight: _fileName != null ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
                   ],

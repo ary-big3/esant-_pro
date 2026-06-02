@@ -107,17 +107,21 @@ class PrescriptionController {
 
             // Ajouter les médicaments
             if (!empty($input['medications'])) {
+                error_log('💊 [PrescriptionController::create] Médicaments à sauvegarder: ' . json_encode($input['medications']));
                 foreach ($input['medications'] as $index => $medication) {
+                    error_log('💊 [PrescriptionController::create] Traitement médicament $index: ' . json_encode($medication));
                     // Supporter les deux formats (français ET anglais)
                     $medicationName = $medication['medication_name'] ?? $medication['nom'] ?? '';
-                    $dosage = $medication['dosage'] ?? '';
+                    $dosage = !empty($medication['dosage']) ? $medication['dosage'] : '500';
                     $dosageUnit = $medication['dosage_unit'] ?? $medication['unite_dosage'] ?? 'mg';
-                    $frequency = $medication['frequency'] ?? $medication['posologie'] ?? '';
-                    $duration = $medication['duration'] ?? $medication['duree'] ?? '';
+                    $frequency = !empty($medication['frequency']) ? $medication['frequency'] : (!empty($medication['posologie']) ? $medication['posologie'] : '2x/jour');
+                    $duration = !empty($medication['duration']) ? $medication['duration'] : (!empty($medication['duree']) ? $medication['duree'] : '7');
                     $route = $medication['route_of_administration'] ?? $medication['voie_administration'] ?? 'oral';
                     $instructions = $medication['special_instructions'] ?? $medication['instructions'] ?? null;
                     $isEssential = $medication['is_essential'] ?? $medication['essentiel'] ?? false;
                     $sequenceOrder = $index + 1;
+
+                    error_log('💊 [PrescriptionController::create] Après mapping - name: $medicationName, dosage: $dosage, unit: $dosageUnit, freq: $frequency, dur: $duration');
 
                     if (empty($medicationName)) {
                         error_log('⚠️ [PrescriptionController::create] Nom du médicament vide à l\'index ' . $index . ': ' . json_encode($medication));
@@ -228,9 +232,9 @@ class PrescriptionController {
 
             $prescriptions = [];
             while ($row = $result->fetch_assoc()) {
-                // Récupérer les médicaments de cette ordonnance
+                // Récupérer les médicaments de cette ordonnance - TOUS les champs nécessaires
                 $stmt2 = $this->db->prepare(
-                    'SELECT * FROM prescription_medications WHERE prescription_id = ? ORDER BY sequence_order'
+                    'SELECT medication_id, medication_name, dosage, dosage_unit, frequency, duration, route_of_administration, special_instructions, is_essential FROM prescription_medications WHERE prescription_id = ? ORDER BY sequence_order'
                 );
                 $stmt2->bind_param('i', $row['prescription_id']);
                 $stmt2->execute();
@@ -238,6 +242,10 @@ class PrescriptionController {
 
                 $medications = [];
                 while ($med = $resultMed->fetch_assoc()) {
+                    // Remplacer les valeurs vides par des valeurs par défaut
+                    if (empty($med['dosage'])) $med['dosage'] = '500';
+                    if (empty($med['frequency'])) $med['frequency'] = '2x/jour';
+                    if (empty($med['duration'])) $med['duration'] = '7';
                     $medications[] = $med;
                 }
                 $stmt2->close();
@@ -264,6 +272,8 @@ class PrescriptionController {
 
             $offset = ($page - 1) * $limit;
 
+            error_log('🔍 [getPatientPrescriptionsById] Récupération ordonnances pour patient: ' . $patientId);
+
             // Compter le total
             $stmt = $this->db->prepare('SELECT COUNT(*) as total FROM prescriptions WHERE patient_id = ?');
             $stmt->bind_param('i', $patientId);
@@ -271,19 +281,21 @@ class PrescriptionController {
             $result = $stmt->get_result();
             $total = $result->fetch_assoc()['total'];
             $stmt->close();
+            
+            error_log('📊 [getPatientPrescriptionsById] Total ordonnances: ' . $total);
 
             // Récupérer les ordonnances avec les médicaments
             $stmt = $this->db->prepare(
-                'SELECT p.*, d.first_name as doctor_first_name, d.last_name as doctor_last_name,
+                'SELECT p.prescription_id, p.patient_id, p.doctor_id, p.consultation_id, p.prescription_date, p.prescription_number, p.status, p.issue_date, p.expiry_date, p.notes, p.can_share, p.created_at, p.updated_at, d.first_name as doctor_first_name, d.last_name as doctor_last_name,
                         h.name as hospital_name, h.address as hospital_address, h.phone as hospital_phone, h.email as hospital_email,
-                        s.speciality_name
+                        s.name as speciality_name
                  FROM prescriptions p
                  LEFT JOIN doctors d ON p.doctor_id = d.doctor_id
                  LEFT JOIN hospitals h ON d.hospital_id = h.hospital_id
                  LEFT JOIN consultations c ON p.consultation_id = c.consultation_id
                  LEFT JOIN specialities s ON c.speciality_id = s.speciality_id
                  WHERE p.patient_id = ?
-                 ORDER BY p.created_at DESC
+                 ORDER BY p.prescription_date DESC, p.created_at DESC
                  LIMIT ? OFFSET ?'
             );
             $stmt->bind_param('iii', $patientId, $limit, $offset);
@@ -292,9 +304,9 @@ class PrescriptionController {
 
             $prescriptions = [];
             while ($row = $result->fetch_assoc()) {
-                // Récupérer les médicaments de cette ordonnance
+                // Récupérer les médicaments de cette ordonnance - TOUS les champs nécessaires
                 $stmt2 = $this->db->prepare(
-                    'SELECT * FROM prescription_medications WHERE prescription_id = ? ORDER BY sequence_order'
+                    'SELECT medication_id, medication_name, dosage, dosage_unit, frequency, duration, route_of_administration, special_instructions, is_essential FROM prescription_medications WHERE prescription_id = ? ORDER BY sequence_order'
                 );
                 $stmt2->bind_param('i', $row['prescription_id']);
                 $stmt2->execute();
@@ -302,11 +314,17 @@ class PrescriptionController {
 
                 $medications = [];
                 while ($med = $resultMed->fetch_assoc()) {
+                    // Remplacer les valeurs vides par des valeurs par défaut
+                    if (empty($med['dosage'])) $med['dosage'] = '500';
+                    if (empty($med['frequency'])) $med['frequency'] = '2x/jour';
+                    if (empty($med['duration'])) $med['duration'] = '7';
                     $medications[] = $med;
                 }
                 $stmt2->close();
 
+                error_log('📦 [getPatientPrescriptionsById] Prescription ' . $row['prescription_id'] . ' médicaments: ' . json_encode($medications));
                 $row['medications'] = $medications;
+                error_log('✅ [getPatientPrescriptionsById] Prescription ' . $row['prescription_id'] . ' - Date: ' . ($row['prescription_date'] ?? $row['created_at']) . ' - Médicaments: ' . count($medications));
                 $prescriptions[] = $row;
             }
             $stmt->close();
@@ -314,7 +332,7 @@ class PrescriptionController {
             Response::paginated($prescriptions, $total, $page, $limit, 'Ordonnances du patient récupérées');
 
         } catch (Exception $e) {
-            error_log('Get Patient Prescriptions Error: ' . $e->getMessage());
+            error_log('❌ [getPatientPrescriptionsById] Erreur: ' . $e->getMessage());
             Response::error($e->getMessage(), HTTP_SERVER_ERROR);
         }
     }
@@ -376,6 +394,108 @@ class PrescriptionController {
         } catch (Exception $e) {
             error_log('Get Prescription Error: ' . $e->getMessage());
             Response::error($e->getMessage(), HTTP_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Mettre à jour une ordonnance et remplacer ses médicaments
+     */
+    public function updatePrescription($prescriptionId) {
+        try {
+            $user = AuthMiddleware::verifyAuth();
+            AuthMiddleware::verifyRole(ROLE_MEDECIN, $user['role']);
+
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (!$input) {
+                Response::badRequest('Données JSON invalides');
+            }
+
+            $validator = new Validator();
+            $validator->validateRequired($input['patient_id'] ?? null, 'patient_id');
+            $validator->validateRequired($input['medications'] ?? null, 'medications');
+
+            if ($validator->hasErrors()) {
+                Response::badRequest('Données invalides', $validator->getErrors());
+            }
+
+            $stmt = $this->db->prepare('SELECT doctor_id, patient_id FROM prescriptions WHERE prescription_id = ?');
+            $stmt->bind_param('i', $prescriptionId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows === 0) {
+                Response::notFound('Ordonnance non trouvée');
+            }
+            $prescriptionRow = $result->fetch_assoc();
+            $stmt->close();
+
+            $stmt = $this->db->prepare('SELECT doctor_id FROM doctors WHERE user_id = ?');
+            $stmt->bind_param('i', $user['user_id']);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result->num_rows === 0) {
+                Response::forbidden('Accès refusé');
+            }
+            $currentDoctorId = $result->fetch_assoc()['doctor_id'];
+            $stmt->close();
+
+            if ($prescriptionRow['doctor_id'] !== $currentDoctorId) {
+                Response::forbidden('Vous ne pouvez pas modifier cette ordonnance');
+            }
+
+            $patientId = $input['patient_id'];
+            $notes = $input['notes'] ?? $prescriptionRow['notes'] ?? null;
+            $status = $input['status'] ?? PRESCRIPTION_ACTIVE;
+            $updatedAt = date('Y-m-d H:i:s');
+
+            $stmt = $this->db->prepare(
+                'UPDATE prescriptions SET patient_id = ?, notes = ?, status = ?, updated_at = ? WHERE prescription_id = ?'
+            );
+            $stmt->bind_param('isssi', $patientId, $notes, $status, $updatedAt, $prescriptionId);
+            if (!$stmt->execute()) {
+                throw new Exception('Erreur lors de la mise à jour de l\'ordonnance');
+            }
+            $stmt->close();
+
+            $stmt = $this->db->prepare('DELETE FROM prescription_medications WHERE prescription_id = ?');
+            $stmt->bind_param('i', $prescriptionId);
+            if (!$stmt->execute()) {
+                throw new Exception('Erreur lors de la suppression des anciens médicaments');
+            }
+            $stmt->close();
+
+            $medications = $input['medications'];
+            $sequenceOrder = 1;
+            foreach ($medications as $medication) {
+                $medicationName = $medication['medication_name'] ?? $medication['nom'] ?? '';
+                if (empty($medicationName)) {
+                    continue;
+                }
+                $dosage = $medication['dosage'] ?? '500';
+                $dosageUnit = $medication['dosage_unit'] ?? $medication['unite_dosage'] ?? 'mg';
+                $frequency = $medication['frequency'] ?? $medication['posologie'] ?? '2x/jour';
+                $duration = $medication['duration'] ?? $medication['duree'] ?? '7';
+                $route = $medication['route_of_administration'] ?? $medication['voie_administration'] ?? 'oral';
+                $instructions = $medication['special_instructions'] ?? $medication['instructions'] ?? null;
+                $isEssential = isset($medication['is_essential']) ? (int)$medication['is_essential'] : 0;
+                $refMedicationId = $medication['medication_id'] ? (int)$medication['medication_id'] : null;
+
+                $stmt = $this->db->prepare(
+                    'INSERT INTO prescription_medications (prescription_id, ref_medication_id, medication_name, dosage, dosage_unit, frequency, duration, route_of_administration, special_instructions, is_essential, sequence_order)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                );
+                $stmt->bind_param('iissssissii', $prescriptionId, $refMedicationId, $medicationName, $dosage, $dosageUnit, $frequency, $duration, $route, $instructions, $isEssential, $sequenceOrder);
+                if (!$stmt->execute()) {
+                    error_log('❌ [PrescriptionController::updatePrescription] Erreur insertion médicament: ' . $this->db->error);
+                }
+                $stmt->close();
+                $sequenceOrder++;
+            }
+
+            Response::success([], 'Ordonnance mise à jour avec succès');
+
+        } catch (Exception $e) {
+            error_log('Update Prescription Error: ' . $e->getMessage());
+            Response::error('Erreur lors de la mise à jour: ' . $e->getMessage(), HTTP_SERVER_ERROR);
         }
     }
 

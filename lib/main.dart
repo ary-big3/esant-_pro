@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'core/theme/app_theme.dart';
-import 'screens/auth/splash_screen.dart';
+import 'screens/auth/welcome_screen.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  final binding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: binding);
   
   // Initialiser les locales pour intl
   await initializeDateFormatting('fr_FR', null);
@@ -27,6 +29,9 @@ void main() async {
   ]);
   
   runApp(const ESanteApp());
+  
+  // Masquer le splash screen une fois que l'app est prête
+  FlutterNativeSplash.remove();
 }
 
 /// Application principale - Plateforme Nationale E-Santé
@@ -51,8 +56,8 @@ class ESanteApp extends StatelessWidget {
       // Thème personnalisé professionnel
       theme: AppTheme.lightTheme,
       
-      // Page d'accueil - Splash Screen
-      home: const SplashScreen(),
+      // Page d'accueil - Welcome Screen
+      home: const WelcomeScreen(),
       
       // Configuration des routes (pour navigation future)
       // routes: {

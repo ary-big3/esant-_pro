@@ -190,6 +190,8 @@ class Router {
                 $this->callController('PrescriptionController', 'getPatientPrescriptionsById', ['patientId', $page, $limit]);
             } elseif ($this->matchRoute('GET', 'prescriptions/{prescriptionId}')) {
                 $this->callController('PrescriptionController', 'getPrescription', ['prescriptionId']);
+            } elseif ($this->matchRoute('PUT', 'prescriptions/{prescriptionId}')) {
+                $this->callController('PrescriptionController', 'updatePrescription', ['prescriptionId']);
             } elseif ($this->matchRoute('PUT', 'prescriptions/{prescriptionId}/status')) {
                 $this->callController('PrescriptionController', 'updateStatus', ['prescriptionId']);
             }
@@ -394,6 +396,8 @@ class Router {
                 $this->callController('AdminController', 'deactivateUser', ['userId']);
             } elseif ($this->matchRoute('POST', 'admin/users/{userId}/activate')) {
                 $this->callController('AdminController', 'activateUser', ['userId']);
+            } elseif ($this->matchRoute('DELETE', 'admin/users/{userId}')) {
+                $this->callController('AdminController', 'deleteUser', ['userId']);
             } elseif ($this->matchRoute('GET', 'admin/logs')) {
                 $page = $_GET['page'] ?? 1;
                 $limit = $_GET['limit'] ?? 50;
