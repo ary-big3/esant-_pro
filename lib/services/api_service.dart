@@ -12,9 +12,9 @@ import 'package:flutter/foundation.dart';
 /// - Headers: Content-Type: application/json
 class ApiService {
   // Configuration
-  static const String baseUrl = 'http://192.168.8.103/esante/backend/public';
+  static const String baseUrl = 'https://backend-u74a.onrender.com';
   static const String apiVersion = 'v1';
-  static const Duration timeout = Duration(seconds: 30);
+  static const Duration timeout = Duration(seconds: 7);
 
   // Instance singleton
   static final ApiService _instance = ApiService._internal();
